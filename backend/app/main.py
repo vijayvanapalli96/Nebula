@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.settings import get_settings
 from app.presentation.api.creative_router import creative_router
 from app.presentation.api.router import router as story_router
+from app.presentation.api.video_router import video_router
 
 
 def create_app() -> FastAPI:
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(story_router)
     app.include_router(creative_router)
+    app.include_router(video_router)
     return app
 
 

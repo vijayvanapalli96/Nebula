@@ -4,14 +4,17 @@ from fastapi import Depends
 
 from app.application.ports.interleaved_generator import InterleavedGeneratorPort
 from app.application.ports.story_generator import StoryGeneratorPort
+from app.application.ports.video_generator import VideoGeneratorPort
 from app.application.use_cases.creative_storytelling import CreativeStorytellingUseCase
 from app.application.use_cases.story_engine import StoryEngineUseCase
+from app.application.use_cases.video_generation import VideoGenerationUseCase
 from app.core.settings import get_settings
 from app.domain.repositories.asset_repository import AssetRepository
 from app.domain.repositories.composition_repository import CompositionRepository
 from app.domain.repositories.project_repository import ProjectRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.usage_repository import UsageRepository
+from app.domain.repositories.video_repository import VideoJobRepository
 from app.infrastructure.repositories.in_memory_creative_repository import (
     InMemoryAssetRepository,
     InMemoryCompositionRepository,
@@ -20,8 +23,10 @@ from app.infrastructure.repositories.in_memory_creative_repository import (
     InMemoryUsageRepository,
 )
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
+from app.infrastructure.repositories.in_memory_video_repository import InMemoryVideoJobRepository
 
 _story_repository = InMemoryStoryStateRepository()
+_video_repository = InMemoryVideoJobRepository()
 _creative_workspace = InMemoryCreativeWorkspaceRepository()
 _project_repository = InMemoryProjectRepository(_creative_workspace)
 _composition_repository = InMemoryCompositionRepository(_creative_workspace)
@@ -92,3 +97,25 @@ def get_creative_use_case(
         usage_repository=usage_repository,
         generator=generator,
     )
+
+
+def get_video_repository() -> VideoJobRepository:
+    return _video_repository
+
+
+@lru_cache
+def _get_video_generator_singleton() -> VideoGeneratorPort:
+    from app.infrastructure.ai.gemini_video_generator import GeminiVideoGenerator
+
+    return GeminiVideoGenerator(settings=get_settings())
+
+
+def get_video_generator() -> VideoGeneratorPort:
+    return _get_video_generator_singleton()
+
+
+def get_video_use_case(
+    repository: VideoJobRepository = Depends(get_video_repository),
+    generator: VideoGeneratorPort = Depends(get_video_generator),
+) -> VideoGenerationUseCase:
+    return VideoGenerationUseCase(repository=repository, generator=generator)
