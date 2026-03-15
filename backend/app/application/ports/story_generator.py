@@ -13,6 +13,10 @@ class StoryGeneratorPort(Protocol):
         """Generate an image from a text prompt. Returns PNG bytes."""
         ...
 
+    async def generate_option_image_grid(self, prompts: list[str]) -> bytes:
+        """Generate a 2x2 grid image from four prompts. Returns PNG bytes."""
+        ...
+
     async def generate_opening_scene(self, state: StoryState) -> Scene:
         ...
 

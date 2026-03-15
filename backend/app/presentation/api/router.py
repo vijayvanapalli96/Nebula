@@ -51,8 +51,7 @@ async def generate_questions(
 ) -> GenerateQuestionsResponse:
     try:
         result = await use_case.generate_questions(to_questions_command(request))
-        media_request_id = use_case.fire_questions_media(result.questions)
-        return to_questions_response(result, media_request_id=media_request_id)
+        return to_questions_response(result)
     except StoryGenerationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
