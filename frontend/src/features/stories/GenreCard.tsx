@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStoryStore } from "../../store/storyStore";
+import { useNavigate } from "react-router-dom";
+import { useStoryCreationStore } from "../../store/storyCreationStore";
 import type { Genre } from "../../types/story";
 
 interface Props {
@@ -8,18 +9,24 @@ interface Props {
 }
 
 const GenreCard: React.FC<Props> = ({ genre }) => {
-  const openModal = useStoryStore((s) => s.openModal);
+  const navigate = useNavigate();
+  const setSelectedGenre = useStoryCreationStore((s) => s.setSelectedGenre);
   const [hovered, setHovered] = useState(false);
 
-  const handleClick = useCallback(() => openModal(genre), [openModal, genre]);
+  const handleClick = useCallback(() => {
+    setSelectedGenre(genre);
+    navigate('/story/create', { state: { genre } });
+  }, [setSelectedGenre, navigate, genre]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        openModal(genre);
+        setSelectedGenre(genre);
+        navigate('/story/create', { state: { genre } });
       }
     },
-    [openModal, genre],
+    [setSelectedGenre, navigate, genre],
   );
 
   return (

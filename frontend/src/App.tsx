@@ -1,10 +1,11 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-const LandingPage    = lazy(() => import("./pages/LandingPage"));
-const DashboardPage  = lazy(() => import("./pages/DashboardPage"));
-const StoryPage      = lazy(() => import("./pages/StoryPage"));
-const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage"));
+const LandingPage        = lazy(() => import("./pages/LandingPage"));
+const DashboardPage      = lazy(() => import("./pages/DashboardPage"));
+const StoryCreationPage  = lazy(() => import("./pages/StoryCreationPage"));
+const StoryPage          = lazy(() => import("./pages/StoryPage"));
+const ComingSoonPage     = lazy(() => import("./pages/ComingSoonPage"));
 
 const Spinner: React.FC = () => (
   <div
@@ -29,6 +30,9 @@ const App: React.FC = () => (
         <Route path="/dashboard/favorites"        element={<ComingSoonPage />} />
         <Route path="/dashboard/achievements"     element={<ComingSoonPage />} />
         <Route path="/dashboard/settings"         element={<ComingSoonPage />} />
+
+        {/* -- Story creation -- */}
+        <Route path="/story/create" element={<StoryCreationPage />} />
 
         {/* -- Story player -- */}
         <Route path="/story/:storyId" element={<StoryPage />} />
