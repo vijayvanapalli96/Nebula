@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from schemas import HistoryEntry, SceneChoice, StoryState
+from app.domain.models.story import HistoryEntry, SceneChoice, StoryState
 
 SYSTEM_PROMPT = """
 You are a story engine for an interactive cinematic game.
@@ -57,9 +57,7 @@ def build_opening_prompt(state: StoryState) -> str:
 
 def build_action_prompt(state: StoryState, chosen: SceneChoice) -> str:
     history = _history_to_text(state.history_log[-8:])
-    current_scene_summary = (
-        state.current_scene.narrative_text if state.current_scene else "No prior scene."
-    )
+    current_scene_summary = state.current_scene.narrative_text if state.current_scene else ""
     return (
         "Continue the story based on the player's selected action.\n"
         f"Genre: {state.genre}\n"
@@ -76,6 +74,7 @@ def build_action_prompt(state: StoryState, chosen: SceneChoice) -> str:
 def _history_to_text(history: list[HistoryEntry]) -> str:
     if not history:
         return "No history yet."
+
     lines: list[str] = []
     for item in history:
         if item.entry_type == "choice":

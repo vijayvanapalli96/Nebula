@@ -24,21 +24,44 @@ Players start a story with character details, choose actions at each scene, and 
 - Pydantic v2
 - `google-genai` SDK
 
-## Project Structure
+## Architecture
 
 ```text
 backend/
-  main.py                    # FastAPI app + routes
-  schemas.py                 # Pydantic request/response/state models
-  story_service.py           # Story flow orchestration
-  gemini_story_generator.py  # Gemini client + JSON parsing
-  prompts.py                 # Hidden system prompt + style seeds
-  state_store.py             # In-memory session repository (Redis-ready surface)
-  dependencies.py            # Dependency injection wiring
-  config.py                  # Environment-backed settings
+  app/
+    core/
+      settings.py                        # Configuration
+    domain/
+      models/story.py                    # Domain entities
+      repositories/story_state_repository.py
+    application/
+      dto/                               # Commands + result views
+      ports/story_generator.py           # AI generator abstraction
+      use_cases/story_engine.py          # Story orchestration use case
+      errors.py
+    infrastructure/
+      ai/gemini_story_generator.py       # google-genai adapter
+      ai/prompts.py                      # Prompt + style seed policies
+      repositories/in_memory_story_repository.py
+    presentation/
+      api/router.py                      # FastAPI routes
+      api/dependencies.py                # DI composition root
+      api/schemas.py                     # Pydantic HTTP contracts
+    main.py                              # FastAPI app factory
+  main.py                                # ASGI/uvicorn entrypoint
   requirements.txt
+  requirements-dev.txt
+  pytest.ini
   .env.template
 ```
+
+### SOLID notes
+
+- Single Responsibility: each layer has focused classes/modules (routing, use case, repository, AI adapter).
+- Open/Closed: swap infrastructure adapters (e.g., Redis, different LLMs) without changing use-case logic.
+- Liskov Substitution: implementations conform to repository and generator contracts.
+- Interface Segregation: small, specific ports (`StoryGeneratorPort`, `StoryStateRepository`).
+- Dependency Inversion: application depends on abstractions, not concrete Gemini/in-memory classes.
 
 ## Setup
 
@@ -52,6 +75,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.template .env
 ```
 
@@ -59,7 +83,7 @@ Update `.env`:
 
 ```env
 GEMINI_API_KEY=your_google_ai_studio_api_key
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ## Run The Service
@@ -74,6 +98,14 @@ Or from `backend/`:
 
 ```bash
 python main.py
+```
+
+## Run Unit Tests
+
+From `backend/`:
+
+```bash
+pytest
 ```
 
 Default server URL:

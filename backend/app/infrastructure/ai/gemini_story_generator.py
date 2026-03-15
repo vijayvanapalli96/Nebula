@@ -5,38 +5,56 @@ from typing import Any
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel, Field
 
-from config import Settings
-from prompts import (
+from app.application.errors import StoryGenerationError
+from app.application.ports.story_generator import StoryGeneratorPort
+from app.core.settings import Settings
+from app.domain.models.story import Scene, SceneChoice, SceneMetadata, StoryState
+from app.infrastructure.ai.prompts import (
     SYSTEM_PROMPT,
     append_style_seed,
     build_action_prompt,
     build_opening_prompt,
 )
-from schemas import SceneChoice, SceneResponse, StoryState
 
 
-class StoryGenerationError(RuntimeError):
-    pass
+class _SceneMetadataPayload(BaseModel):
+    scene_id: str
+    chapter: int = Field(..., ge=1)
+    mood: str
+    tension: int = Field(..., ge=0, le=100)
 
 
-class GeminiStoryGenerator:
+class _SceneChoicePayload(BaseModel):
+    choice_id: str
+    label: str
+    consequence_hint: str | None = None
+
+
+class _ScenePayload(BaseModel):
+    metadata: _SceneMetadataPayload
+    visual_prompt: str
+    narrative_text: str
+    choices: list[_SceneChoicePayload] = Field(..., min_length=2, max_length=4)
+
+
+class GeminiStoryGenerator(StoryGeneratorPort):
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._client: genai.Client | None = None
-
         if settings.gemini_api_key:
             self._client = genai.Client(api_key=settings.gemini_api_key)
 
-    async def generate_opening_scene(self, state: StoryState) -> SceneResponse:
+    async def generate_opening_scene(self, state: StoryState) -> Scene:
         prompt = build_opening_prompt(state)
-        return await self._generate_scene(prompt, genre=state.genre)
+        return await self._generate_scene(prompt=prompt, genre=state.genre)
 
-    async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> SceneResponse:
-        prompt = build_action_prompt(state, chosen)
-        return await self._generate_scene(prompt, genre=state.genre)
+    async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> Scene:
+        prompt = build_action_prompt(state, chosen=chosen)
+        return await self._generate_scene(prompt=prompt, genre=state.genre)
 
-    async def _generate_scene(self, prompt: str, genre: str) -> SceneResponse:
+    async def _generate_scene(self, prompt: str, genre: str) -> Scene:
         if self._client is None:
             raise StoryGenerationError("GEMINI_API_KEY is not configured.")
 
@@ -59,12 +77,35 @@ class GeminiStoryGenerator:
         payload = _parse_model_json(raw_text)
 
         try:
-            scene = SceneResponse.model_validate(payload)
+            scene_payload = _ScenePayload.model_validate(payload)
         except Exception as exc:
             raise StoryGenerationError(f"Gemini returned invalid scene schema: {exc}") from exc
 
-        scene.visual_prompt = append_style_seed(genre=genre, visual_prompt=scene.visual_prompt)
-        return scene
+        return _to_domain_scene(scene_payload=scene_payload, genre=genre)
+
+
+def _to_domain_scene(scene_payload: _ScenePayload, genre: str) -> Scene:
+    return Scene(
+        metadata=SceneMetadata(
+            scene_id=scene_payload.metadata.scene_id,
+            chapter=scene_payload.metadata.chapter,
+            mood=scene_payload.metadata.mood,
+            tension=scene_payload.metadata.tension,
+        ),
+        visual_prompt=append_style_seed(
+            genre=genre,
+            visual_prompt=scene_payload.visual_prompt,
+        ),
+        narrative_text=scene_payload.narrative_text,
+        choices=[
+            SceneChoice(
+                choice_id=choice.choice_id,
+                label=choice.label,
+                consequence_hint=choice.consequence_hint,
+            )
+            for choice in scene_payload.choices
+        ],
+    )
 
 
 def _extract_response_text(response: Any) -> str:
@@ -103,3 +144,4 @@ def _parse_model_json(raw_text: str) -> dict[str, Any]:
             return json.loads(raw[start : end + 1])
         except json.JSONDecodeError as exc:
             raise StoryGenerationError("Gemini output JSON parsing failed.") from exc
+
