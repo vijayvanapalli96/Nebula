@@ -92,12 +92,13 @@ class GenerateQuestionsRequest(BaseModel):
 
 
 class QuestionOptionResponse(BaseModel):
-    options: list[str] = Field(..., min_length=4, max_length=4)
+    text: str = Field(..., min_length=1, description="Option text.")
+    image_uri: str | None = Field(default=None, description="GCS public URL of option image.")
 
 
 class QuestionResponse(BaseModel):
     question: str = Field(..., min_length=1, description="The question text.")
-    options: list[str] = Field(..., min_length=4, max_length=4, description="Answer options.")
+    options: list[QuestionOptionResponse] = Field(..., min_length=4, max_length=4, description="Answer options.")
 
 
 class GenerateQuestionsResponse(BaseModel):
@@ -120,6 +121,8 @@ class OpeningChoiceResponse(BaseModel):
     choice_id: str = Field(..., description="Choice identifier.")
     choice_text: str = Field(..., min_length=1, description="Choice text shown to the player.")
     direction_hint: str = Field(..., min_length=1, description="Hint about narrative direction.")
+    image_uri: str | None = Field(default=None, description="GCS URL of choice preview image.")
+    video_uri: str | None = Field(default=None, description="GCS URL of choice action video.")
 
 
 class OpeningSceneResponse(BaseModel):
@@ -127,6 +130,7 @@ class OpeningSceneResponse(BaseModel):
     character_name: str
     scene_title: str
     scene_description: str
+    video_uri: str | None = Field(default=None, description="GCS URL of opening scene video.")
     choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
 
 
@@ -228,11 +232,14 @@ def to_opening_scene_response(result: OpeningSceneResult) -> OpeningSceneRespons
         character_name=result.character_name,
         scene_title=result.scene.scene_title,
         scene_description=result.scene.scene_description,
+        video_uri=result.scene.video_uri,
         choices=[
             OpeningChoiceResponse(
                 choice_id=c.choice_id,
                 choice_text=c.choice_text,
                 direction_hint=c.direction_hint,
+                image_uri=c.image_uri,
+                video_uri=c.video_uri,
             )
             for c in result.scene.choices
         ],
@@ -243,7 +250,13 @@ def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
     return GenerateQuestionsResponse(
         theme=result.theme,
         questions=[
-            QuestionResponse(question=q.question, options=list(q.options))
+            QuestionResponse(
+                question=q.question,
+                options=[
+                    QuestionOptionResponse(text=opt.text, image_uri=opt.image_uri)
+                    for opt in q.options
+                ],
+            )
             for q in result.questions
         ],
     )

@@ -9,6 +9,10 @@ class StoryGeneratorPort(Protocol):
     async def generate_initial_questions(self, theme: str) -> list[InitialQuestion]:
         ...
 
+    async def generate_option_image(self, prompt: str) -> bytes:
+        """Generate an image from a text prompt. Returns PNG bytes."""
+        ...
+
     async def generate_opening_scene(self, state: StoryState) -> Scene:
         ...
 

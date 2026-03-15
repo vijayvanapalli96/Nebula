@@ -13,3 +13,5 @@ backend/generated_videos/*.mp4
 backend/test_*.py
 backend/test_*.png
 backend/test_*.mp4
+backend/sa-key.json
+**/sa-key.json

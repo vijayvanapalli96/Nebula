@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.application.errors import SessionNotFoundError
-from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
 from app.presentation.api.dependencies import get_use_case
 
@@ -37,19 +37,39 @@ class FakeUseCase:
             questions=[
                 InitialQuestion(
                     question="What color is the sky?",
-                    options=["Red", "Blue", "Green", "Black"],
+                    options=[
+                        QuestionOption(text="Red", image_prompt="red sky"),
+                        QuestionOption(text="Blue", image_prompt="blue sky"),
+                        QuestionOption(text="Green", image_prompt="green sky"),
+                        QuestionOption(text="Black", image_prompt="black sky"),
+                    ],
                 ),
                 InitialQuestion(
                     question="What drives the hero?",
-                    options=["Revenge", "Curiosity", "Love", "Duty"],
+                    options=[
+                        QuestionOption(text="Revenge", image_prompt="fire fist"),
+                        QuestionOption(text="Curiosity", image_prompt="glowing book"),
+                        QuestionOption(text="Love", image_prompt="two hearts"),
+                        QuestionOption(text="Duty", image_prompt="knight kneeling"),
+                    ],
                 ),
                 InitialQuestion(
                     question="What lurks in the shadows?",
-                    options=["Ghosts", "Machines", "Beasts", "Nothing"],
+                    options=[
+                        QuestionOption(text="Ghosts", image_prompt="ghosts"),
+                        QuestionOption(text="Machines", image_prompt="machines"),
+                        QuestionOption(text="Beasts", image_prompt="beasts"),
+                        QuestionOption(text="Nothing", image_prompt="void"),
+                    ],
                 ),
                 InitialQuestion(
                     question="How does the story end?",
-                    options=["In flames", "With a whisper", "With a dance", "Silently"],
+                    options=[
+                        QuestionOption(text="In flames", image_prompt="flames"),
+                        QuestionOption(text="With a whisper", image_prompt="mist"),
+                        QuestionOption(text="With a dance", image_prompt="dance"),
+                        QuestionOption(text="Silently", image_prompt="silence"),
+                    ],
                 ),
             ],
         )
@@ -61,10 +81,35 @@ class FakeUseCase:
             scene=OpeningScene(
                 scene_title="Crimson Echoes",
                 scene_description="The neon-soaked city pulses with hidden danger.",
+                video_prompt="Sweeping aerial shot of a neon-drenched cyberpunk city at dusk",
                 choices=[
-                    OpeningChoice(choice_id="A", choice_text="Enter the alley", direction_hint="Danger awaits"),
-                    OpeningChoice(choice_id="B", choice_text="Climb the tower", direction_hint="A broader view"),
-                    OpeningChoice(choice_id="C", choice_text="Follow the stranger", direction_hint="Mystery deepens"),
+                    OpeningChoice(
+                        choice_id="A",
+                        choice_text="Enter the alley",
+                        direction_hint="Danger awaits",
+                        image_prompt="dark alley neon",
+                        video_prompt="camera pushes into alley",
+                        image_uri="https://storage.example.com/choice-a.png",
+                        video_uri="https://storage.example.com/choice-a.mp4",
+                    ),
+                    OpeningChoice(
+                        choice_id="B",
+                        choice_text="Climb the tower",
+                        direction_hint="A broader view",
+                        image_prompt="tall tower clouds",
+                        video_prompt="camera tilts up tower",
+                        image_uri="https://storage.example.com/choice-b.png",
+                        video_uri="https://storage.example.com/choice-b.mp4",
+                    ),
+                    OpeningChoice(
+                        choice_id="C",
+                        choice_text="Follow the stranger",
+                        direction_hint="Mystery deepens",
+                        image_prompt="cloaked figure corner",
+                        video_prompt="camera follows figure",
+                        image_uri="https://storage.example.com/choice-c.png",
+                        video_uri="https://storage.example.com/choice-c.mp4",
+                    ),
                 ],
             ),
         )
@@ -154,6 +199,9 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
     for q in body["questions"]:
         assert "question" in q
         assert len(q["options"]) == 4
+        for opt in q["options"]:
+            assert "text" in opt
+            assert "image_uri" in opt
 
 
 def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:
@@ -184,6 +232,8 @@ def test_opening_scene_route_returns_scene(client: TestClient) -> None:
     assert body["scene_title"] == "Crimson Echoes"
     assert len(body["choices"]) == 3
     assert body["choices"][0]["choice_id"] == "A"
+    assert body["choices"][0]["image_uri"] == "https://storage.example.com/choice-a.png"
+    assert body["choices"][0]["video_uri"] == "https://storage.example.com/choice-a.mp4"
 
 
 def test_opening_scene_route_rejects_missing_answers(client: TestClient) -> None:
