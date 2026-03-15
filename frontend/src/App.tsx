@@ -4,6 +4,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 const LandingPage        = lazy(() => import("./pages/LandingPage"));
 const DashboardPage      = lazy(() => import("./pages/DashboardPage"));
 const StoryCreationPage  = lazy(() => import("./pages/StoryCreationPage"));
+const StoryGeneratingPage = lazy(() => import("./pages/StoryGeneratingPage"));
+const StoryScenePage     = lazy(() => import("./pages/StoryScenePage"));
+const StoryGraphPage     = lazy(() => import("./pages/StoryGraphPage"));
 const StoryPage          = lazy(() => import("./pages/StoryPage"));
 const ComingSoonPage     = lazy(() => import("./pages/ComingSoonPage"));
 
@@ -32,7 +35,10 @@ const App: React.FC = () => (
         <Route path="/dashboard/settings"         element={<ComingSoonPage />} />
 
         {/* -- Story creation -- */}
-        <Route path="/story/create" element={<StoryCreationPage />} />
+        <Route path="/story/create"      element={<StoryCreationPage />} />
+        <Route path="/story/generating"  element={<StoryGeneratingPage />} />
+        <Route path="/story/scene"       element={<StoryScenePage />} />
+        <Route path="/story/graph"       element={<StoryGraphPage />} />
 
         {/* -- Story player -- */}
         <Route path="/story/:storyId" element={<StoryPage />} />

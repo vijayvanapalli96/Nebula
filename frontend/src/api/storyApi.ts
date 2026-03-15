@@ -1,4 +1,5 @@
 import type { Question, QuestionOption } from '../store/storyCreationStore';
+import type { Scene } from '../store/storySessionStore';
 
 export interface StoryQuestionsResponse {
   questions: Question[];
@@ -42,4 +43,25 @@ export async function fetchStoryQuestions(theme: string): Promise<StoryQuestions
       })),
     })),
   };
+}
+
+export interface StoryOpeningRequest {
+  theme: string;
+  character_name: string;
+  answers: Array<{ question: string; answer: string }>;
+}
+
+/** POST /story/opening — generates the opening scene from the user's answers. */
+export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<Scene> {
+  const res = await fetch(`${BASE_URL}/story/opening`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to generate story: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json() as Promise<Scene>;
 }
