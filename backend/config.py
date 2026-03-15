@@ -11,12 +11,7 @@ class Settings(BaseSettings):
     app_port: int = 8000
     cors_allow_origins: str = "*"
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = "gemini-2.5-flash"
-    imagen_model: str = "imagen-4.0-generate-001"
-    gcs_bucket_name: str = Field(default="", alias="GCS_BUCKET_NAME")
-    firebase_project_id: str = Field(default="", alias="FIREBASE_PROJECT_ID")
-    firebase_credentials_path: str = Field(default="", alias="FIREBASE_CREDENTIALS_PATH")
-    firebase_themes_collection: str = Field(default="themes", alias="FIREBASE_THEMES_COLLECTION")
+    gemini_model: str = "gemini-1.5-flash"
     scene_word_limit: int = 120
 
     model_config = SettingsConfigDict(

@@ -51,7 +51,7 @@ const MOCK_STORIES: Story[] = [
   },
 ];
 
-const MOCK_GENRES: Genre[] = [
+export const FALLBACK_GENRES: Genre[] = [
   {
     id: 'genre-noir',
     title: 'Noir Detective',
@@ -125,6 +125,7 @@ interface StoryState {
   closeModal: () => void;
   updateForm: (fields: Partial<NewStoryForm>) => void;
   resetForm: () => void;
+  setGenres: (genres: Genre[]) => void;
 }
 
 const defaultForm: NewStoryForm = {
@@ -137,7 +138,7 @@ const defaultForm: NewStoryForm = {
 
 export const useStoryStore = create<StoryState>((set) => ({
   stories: MOCK_STORIES,
-  genres: MOCK_GENRES,
+  genres: FALLBACK_GENRES,
   selectedGenre: null,
   activeStory: null,
   isModalOpen: false,
@@ -156,4 +157,5 @@ export const useStoryStore = create<StoryState>((set) => ({
     set((state) => ({ newStoryForm: { ...state.newStoryForm, ...fields } })),
 
   resetForm: () => set({ newStoryForm: defaultForm }),
+  setGenres: (genres) => set({ genres }),
 }));

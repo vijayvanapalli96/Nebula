@@ -89,3 +89,14 @@ class StoryState:
     created_at: datetime = field(default_factory=utc_now)
     updated_at: datetime = field(default_factory=utc_now)
 
+
+@dataclass(frozen=True)
+class StoryTheme:
+    theme_id: str
+    title: str
+    tagline: str
+    description: str
+    image: str
+    accent_color: str
+    is_active: bool = True
+    sort_order: int = 0

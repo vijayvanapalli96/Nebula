@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import StoryCarousel from '../features/stories/StoryCarousel';
 import GenreCarousel from '../features/stories/GenreCarousel';
 import CreateStoryModal from '../features/stories/CreateStoryModal';
-import { useStoryStore } from '../store/storyStore';
+import { fetchStoryThemes } from '../api/storyApi';
+import { FALLBACK_GENRES, useStoryStore } from '../store/storyStore';
 
 // ── Quick stat card ────────────────────────────────────────────────────────
 const StatCard: React.FC<{ label: string; value: number | string; accent?: string }> = ({
@@ -61,6 +62,27 @@ const fadeUp = {
 const DashboardPage: React.FC = () => {
   const stories = useStoryStore((s) => s.stories);
   const genres  = useStoryStore((s) => s.genres);
+  const setGenres = useStoryStore((s) => s.setGenres);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchStoryThemes()
+      .then((themes) => {
+        if (!isMounted) return;
+        if (themes.length > 0) {
+          setGenres(themes);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setGenres(FALLBACK_GENRES);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [setGenres]);
 
   const hour = new Date().getHours();
   const greeting =

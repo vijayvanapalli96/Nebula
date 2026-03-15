@@ -15,6 +15,7 @@ Players start a story with character details, choose actions at each scene, and 
   - visual prompt
   - interactive choices
 - Stores session state in memory (MVP), with a repository abstraction ready for Redis migration.
+- Exposes `/story/themes` for frontend theme cards, with Firestore-backed storage support.
 - Adds style seeds to visual prompts (for consistent genre-based image generation quality).
 
 ## Tech Stack
@@ -24,6 +25,7 @@ Players start a story with character details, choose actions at each scene, and 
 - Uvicorn
 - Pydantic v2
 - `google-genai` SDK
+- Google Cloud Firestore
 
 ## Architecture
 
@@ -47,6 +49,8 @@ backend/
       ai/gemini_interleaved_generator.py # Interleaved multimodal adapter
       ai/prompts.py                      # Prompt + style seed policies
       repositories/in_memory_story_repository.py
+      repositories/in_memory_story_theme_repository.py
+      repositories/firestore_story_theme_repository.py
       repositories/in_memory_creative_repository.py
     presentation/
       api/router.py                      # FastAPI routes
@@ -58,6 +62,8 @@ backend/
   main.py                                # ASGI/uvicorn entrypoint
   requirements.txt
   requirements-dev.txt
+  scripts/firebase/seed_story_themes.py
+  scripts/firebase/story_themes.seed.json
   pytest.ini
   .env.template
 ```
@@ -91,6 +97,9 @@ Update `.env`:
 ```env
 GEMINI_API_KEY=your_google_ai_studio_api_key
 GEMINI_MODEL=gemini-2.5-flash
+FIREBASE_PROJECT_ID=disclosure-nlu
+FIREBASE_CREDENTIALS_PATH=/absolute/path/to/firebase-service-account.json
+FIREBASE_THEMES_COLLECTION=themes
 ```
 
 ## Run The Service
@@ -180,6 +189,13 @@ Request:
 
 Returns active in-memory story cards for the landing page.
 
+### `GET /story/themes`
+
+Returns active story themes used by the frontend genre carousel.
+If `FIREBASE_PROJECT_ID` is configured, themes are read from Firestore collection
+`FIREBASE_THEMES_COLLECTION` (default: `themes`); otherwise in-memory defaults are returned.
+For local runs, set `FIREBASE_CREDENTIALS_PATH` to a Firebase service account key file.
+
 ### `GET /health`
 
 Basic health endpoint.
@@ -219,6 +235,21 @@ Creates an export artifact descriptor (download URL + expiry).
 ### `GET /v1/usage`
 
 Returns aggregate generation usage counters.
+
+## Firestore Seed Script
+
+Create/update the story themes collection:
+
+```bash
+cd backend
+python scripts/firebase/seed_story_themes.py \
+  --project-id disclosure-nlu \
+  --collection themes
+```
+
+Schema reference:
+
+- `scripts/firebase/STORY_THEMES_SCHEMA.md`
 
 ## Implementation Notes
 

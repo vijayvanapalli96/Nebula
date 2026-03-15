@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
 from app.application.errors import InvalidChoiceError, SessionNotFoundError
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
@@ -14,6 +14,7 @@ from app.application.ports.video_generator import VideoGenerationRequest, VideoG
 from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
 from app.domain.repositories.story_state_repository import StoryStateRepository
+from app.domain.repositories.story_theme_repository import StoryThemeRepository
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +26,14 @@ class StoryEngineUseCase:
         generator: StoryGeneratorPort,
         image_storage: ImageStoragePort | None = None,
         video_generator: VideoGeneratorPort | None = None,
+        theme_repository: StoryThemeRepository | None = None,
         media_tracker: MediaTaskTracker | None = None,
     ) -> None:
         self._repository = repository
         self._generator = generator
         self._image_storage = image_storage
         self._video_generator = video_generator
+        self._theme_repository = theme_repository
         self._media_tracker = media_tracker
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
@@ -256,6 +259,22 @@ class StoryEngineUseCase:
         )
         return [self._to_story_card_view(state=story) for story in sessions]
 
+    def list_story_themes(self) -> list[StoryThemeView]:
+        if self._theme_repository is None:
+            return []
+
+        return [
+            StoryThemeView(
+                id=theme.theme_id,
+                title=theme.title,
+                tagline=theme.tagline,
+                description=theme.description,
+                image=theme.image,
+                accent_color=theme.accent_color,
+            )
+            for theme in self._theme_repository.list_active()
+        ]
+
     @staticmethod
     def _to_story_card_view(state: StoryState) -> StoryCardView:
         return StoryCardView(
@@ -286,4 +305,3 @@ class StoryEngineUseCase:
         scene.metadata.chapter = chapter
         if not scene.metadata.scene_id.strip():
             scene.metadata.scene_id = f"scene-{chapter}"
-

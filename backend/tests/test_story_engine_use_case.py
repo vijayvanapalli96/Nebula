@@ -7,7 +7,7 @@ import pytest
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryTheme
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -110,6 +110,21 @@ class FakeGenerator:
 
     async def generate_next_scene(self, state, chosen):  # noqa: ANN001
         return _scene(scene_id="scene-2", chapter=2)
+
+
+class FakeThemeRepository:
+    def list_active(self) -> list[StoryTheme]:
+        return [
+            StoryTheme(
+                theme_id="genre-noir",
+                title="Noir Detective",
+                tagline="Solve a crime in a rain-soaked city.",
+                description="Secrets hide in every shadow.",
+                image="https://example.com/noir.jpg",
+                accent_color="rgba(234,179,8,0.6)",
+                sort_order=10,
+            )
+        ]
 
 
 def test_start_story_creates_session_and_opening_scene() -> None:
@@ -228,3 +243,18 @@ def test_generate_opening_scene_returns_scene_with_choices() -> None:
     assert result.scene.scene_title == "Crimson Echoes"
     assert len(result.scene.choices) == 3
     assert result.scene.choices[0].choice_id == "A"
+
+
+def test_list_story_themes_returns_active_theme_views() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        theme_repository=FakeThemeRepository(),
+    )
+
+    result = use_case.list_story_themes()
+
+    assert len(result) == 1
+    assert result[0].id == "genre-noir"
+    assert result[0].title == "Noir Detective"

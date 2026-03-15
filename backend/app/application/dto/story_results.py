@@ -42,3 +42,12 @@ class StoryCardView:
     updated_at: datetime
     choices_available: int
 
+
+@dataclass(frozen=True)
+class StoryThemeView:
+    id: str
+    title: str
+    tagline: str
+    description: str
+    image: str
+    accent_color: str
