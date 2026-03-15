@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.settings import get_settings
-from app.presentation.api.creative_router import creative_router
 from app.presentation.api.router import router as story_router
 
 
@@ -26,8 +25,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(story_router)
-    app.include_router(creative_router)
     return app
 
 
 app = create_app()
+
