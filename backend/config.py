@@ -7,6 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Interactive Cinematic Story Engine API"
     app_env: str = "development"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
+    cors_allow_origins: str = "*"
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = "gemini-1.5-flash"
     scene_word_limit: int = 120
@@ -21,4 +24,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
