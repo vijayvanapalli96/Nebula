@@ -37,19 +37,39 @@ class FakeUseCase:
             questions=[
                 InitialQuestion(
                     question="What color is the sky?",
-                    options=["Red", "Blue", "Green", "Black"],
+                    options=[
+                        QuestionOption(text="Red", image_prompt="red sky"),
+                        QuestionOption(text="Blue", image_prompt="blue sky"),
+                        QuestionOption(text="Green", image_prompt="green sky"),
+                        QuestionOption(text="Black", image_prompt="black sky"),
+                    ],
                 ),
                 InitialQuestion(
                     question="What drives the hero?",
-                    options=["Revenge", "Curiosity", "Love", "Duty"],
+                    options=[
+                        QuestionOption(text="Revenge", image_prompt="fire fist"),
+                        QuestionOption(text="Curiosity", image_prompt="glowing book"),
+                        QuestionOption(text="Love", image_prompt="two hearts"),
+                        QuestionOption(text="Duty", image_prompt="knight kneeling"),
+                    ],
                 ),
                 InitialQuestion(
                     question="What lurks in the shadows?",
-                    options=["Ghosts", "Machines", "Beasts", "Nothing"],
+                    options=[
+                        QuestionOption(text="Ghosts", image_prompt="ghosts"),
+                        QuestionOption(text="Machines", image_prompt="machines"),
+                        QuestionOption(text="Beasts", image_prompt="beasts"),
+                        QuestionOption(text="Nothing", image_prompt="void"),
+                    ],
                 ),
                 InitialQuestion(
                     question="How does the story end?",
-                    options=["In flames", "With a whisper", "With a dance", "Silently"],
+                    options=[
+                        QuestionOption(text="In flames", image_prompt="flames"),
+                        QuestionOption(text="With a whisper", image_prompt="mist"),
+                        QuestionOption(text="With a dance", image_prompt="dance"),
+                        QuestionOption(text="Silently", image_prompt="silence"),
+                    ],
                 ),
             ],
         )
@@ -154,6 +174,9 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
     for q in body["questions"]:
         assert "question" in q
         assert len(q["options"]) == 4
+        for opt in q["options"]:
+            assert "text" in opt
+            assert "image_uri" in opt
 
 
 def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:

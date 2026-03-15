@@ -92,12 +92,13 @@ class GenerateQuestionsRequest(BaseModel):
 
 
 class QuestionOptionResponse(BaseModel):
-    options: list[str] = Field(..., min_length=4, max_length=4)
+    text: str = Field(..., min_length=1, description="Option text.")
+    image_uri: str | None = Field(default=None, description="GCS public URL of option image.")
 
 
 class QuestionResponse(BaseModel):
     question: str = Field(..., min_length=1, description="The question text.")
-    options: list[str] = Field(..., min_length=4, max_length=4, description="Answer options.")
+    options: list[QuestionOptionResponse] = Field(..., min_length=4, max_length=4, description="Answer options.")
 
 
 class GenerateQuestionsResponse(BaseModel):
@@ -243,7 +244,13 @@ def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
     return GenerateQuestionsResponse(
         theme=result.theme,
         questions=[
-            QuestionResponse(question=q.question, options=list(q.options))
+            QuestionResponse(
+                question=q.question,
+                options=[
+                    QuestionOptionResponse(text=opt.text, image_uri=opt.image_uri)
+                    for opt in q.options
+                ],
+            )
             for q in result.questions
         ],
     )

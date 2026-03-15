@@ -6,20 +6,53 @@ from uuid import uuid4
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
 from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.application.errors import InvalidChoiceError, SessionNotFoundError
+from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
 from app.domain.repositories.story_state_repository import StoryStateRepository
 
 
 class StoryEngineUseCase:
-    def __init__(self, repository: StoryStateRepository, generator: StoryGeneratorPort) -> None:
+    def __init__(
+        self,
+        repository: StoryStateRepository,
+        generator: StoryGeneratorPort,
+        image_storage: ImageStoragePort | None = None,
+    ) -> None:
         self._repository = repository
         self._generator = generator
+        self._image_storage = image_storage
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
         questions = await self._generator.generate_initial_questions(command.theme.strip())
+
+        if self._image_storage is not None:
+            await self._generate_and_upload_option_images(questions)
+
         return QuestionsResult(theme=command.theme.strip(), questions=questions)
 
+    async def _generate_and_upload_option_images(
+        self, questions: list,
+    ) -> None:
+        """Generate images for all options in parallel and upload to GCS."""
+        import asyncio
+        from uuid import uuid4
+
+        async def _process_option(option) -> None:  # noqa: ANN001
+            try:
+                image_bytes = await self._generator.generate_option_image(option.image_prompt)
+                path = f"question-options/{uuid4()}.png"
+                option.image_uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
+            except Exception:
+                # If image generation fails for an option, leave image_uri as None
+                pass
+
+        tasks = [
+            _process_option(opt)
+            for q in questions
+            for opt in q.options
+        ]
+        await asyncio.gather(*tasks)
     async def generate_opening_scene(self, command: GenerateOpeningSceneCommand) -> OpeningSceneResult:
         answers_tuples = [(a.question, a.answer) for a in command.answers]
         scene = await self._generator.generate_opening_scene_from_answers(

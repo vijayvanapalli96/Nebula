@@ -22,6 +22,8 @@ Rules:
 - Options should represent different narrative directions
 - Questions should help shape the plot, character motivations, or story stakes
 - Avoid repeating similar question types
+- Each option must include an image_prompt: a vivid, single-sentence visual description
+  suitable for an image generation model (no text, no UI elements, just a scene or object)
 
 Return the result strictly in JSON format:
 
@@ -32,10 +34,10 @@ Return the result strictly in JSON format:
       "question": "",
       "story_influence": "",
       "options": [
-        "",
-        "",
-        "",
-        ""
+        {"text": "", "image_prompt": ""},
+        {"text": "", "image_prompt": ""},
+        {"text": "", "image_prompt": ""},
+        {"text": "", "image_prompt": ""}
       ]
     }
   ]
@@ -45,7 +47,8 @@ Field explanations:
 - id: a short identifier for the question
 - question: the question shown to the user
 - story_influence: explain how this question will affect the story generation
-- options: the four selectable choices
+- options: four selectable choices, each with display text and a cinematic image_prompt
+- image_prompt: a vivid visual description of the option for image generation (e.g. "A lone warrior standing on a cliff edge overlooking a stormy ocean at sunset")
 """
 
 SYSTEM_PROMPT = """
