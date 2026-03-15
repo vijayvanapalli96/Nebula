@@ -151,14 +151,27 @@ Rules:
 - Use the character name and their answers to shape the world.
 - Provide 3-4 branching choices, each leading in a meaningfully different direction.
 - Each choice must have a short direction_hint describing the narrative consequence.
+- video_prompt (scene level): a vivid 1-2 sentence cinematic motion description of the
+  opening scene, suitable for a video generation model. Describe camera movement, action,
+  atmosphere. No UI text, no titles.
+- Each choice must include:
+  - image_prompt: a vivid single-sentence visual still-frame description suitable for an
+    image generation model (what the player would see if they pick this path).
+  - video_prompt: a vivid 1-2 sentence cinematic motion description of what unfolds when
+    the player picks this choice. Describe camera angle, action, atmosphere.
 Required JSON shape:
 {
   "scene_title": "string",
   "scene_description": "string",
+  "video_prompt": "string",
   "choices": [
-    {"choice_id": "A", "choice_text": "string", "direction_hint": "string"},
-    {"choice_id": "B", "choice_text": "string", "direction_hint": "string"},
-    {"choice_id": "C", "choice_text": "string", "direction_hint": "string"}
+    {
+      "choice_id": "A",
+      "choice_text": "string",
+      "direction_hint": "string",
+      "image_prompt": "string",
+      "video_prompt": "string"
+    }
   ]
 }
 """

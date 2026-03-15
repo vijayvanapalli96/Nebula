@@ -7,7 +7,7 @@ import pytest
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -82,10 +82,29 @@ class FakeGenerator:
         return OpeningScene(
             scene_title="Crimson Echoes",
             scene_description="The neon-soaked city pulses beneath you.",
+            video_prompt="Aerial drone shot descending into a neon-lit cyberpunk city at night",
             choices=[
-                OpeningChoice(choice_id="A", choice_text="Enter the alley", direction_hint="Danger awaits"),
-                OpeningChoice(choice_id="B", choice_text="Climb the tower", direction_hint="A broader view"),
-                OpeningChoice(choice_id="C", choice_text="Follow the stranger", direction_hint="Mystery deepens"),
+                OpeningChoice(
+                    choice_id="A",
+                    choice_text="Enter the alley",
+                    direction_hint="Danger awaits",
+                    image_prompt="A dark alley with neon signs flickering",
+                    video_prompt="Camera pushes into a narrow alley as shadows shift",
+                ),
+                OpeningChoice(
+                    choice_id="B",
+                    choice_text="Climb the tower",
+                    direction_hint="A broader view",
+                    image_prompt="A towering skyscraper reaching into clouds",
+                    video_prompt="Camera tilts upward along a massive glass tower",
+                ),
+                OpeningChoice(
+                    choice_id="C",
+                    choice_text="Follow the stranger",
+                    direction_hint="Mystery deepens",
+                    image_prompt="A mysterious cloaked figure disappearing around a corner",
+                    video_prompt="Camera follows a shadowy figure through crowded streets",
+                ),
             ],
         )
 

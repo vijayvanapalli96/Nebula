@@ -7,3 +7,7 @@ class ImageStoragePort(Protocol):
     async def upload_image(self, image_bytes: bytes, destination_path: str) -> str:
         """Upload image bytes and return a public URL."""
         ...
+
+    async def upload_video(self, video_bytes: bytes, destination_path: str) -> str:
+        """Upload video bytes and return a public URL."""
+        ...

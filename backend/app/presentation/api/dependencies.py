@@ -64,12 +64,29 @@ def get_image_storage() -> ImageStoragePort | None:
     return _get_image_storage_singleton()
 
 
+@lru_cache
+def _get_video_generator_singleton() -> VideoGeneratorPort:
+    from app.infrastructure.ai.gemini_video_generator import GeminiVideoGenerator
+
+    return GeminiVideoGenerator(settings=get_settings())
+
+
+def get_video_generator() -> VideoGeneratorPort:
+    return _get_video_generator_singleton()
+
+
 def get_use_case(
     repository: StoryStateRepository = Depends(get_repository),
     generator: StoryGeneratorPort = Depends(get_ai_generator),
     image_storage: ImageStoragePort | None = Depends(get_image_storage),
+    video_generator: VideoGeneratorPort = Depends(get_video_generator),
 ) -> StoryEngineUseCase:
-    return StoryEngineUseCase(repository=repository, generator=generator, image_storage=image_storage)
+    return StoryEngineUseCase(
+        repository=repository,
+        generator=generator,
+        image_storage=image_storage,
+        video_generator=video_generator,
+    )
 
 
 def get_project_repository() -> ProjectRepository:
@@ -117,17 +134,6 @@ def get_creative_use_case(
 
 def get_video_repository() -> VideoJobRepository:
     return _video_repository
-
-
-@lru_cache
-def _get_video_generator_singleton() -> VideoGeneratorPort:
-    from app.infrastructure.ai.gemini_video_generator import GeminiVideoGenerator
-
-    return GeminiVideoGenerator(settings=get_settings())
-
-
-def get_video_generator() -> VideoGeneratorPort:
-    return _get_video_generator_singleton()
 
 
 def get_video_use_case(

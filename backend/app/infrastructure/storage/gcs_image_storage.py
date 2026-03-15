@@ -40,14 +40,25 @@ class GcsImageStorage(ImageStoragePort):
         loop = asyncio.get_running_loop()
         url = await loop.run_in_executor(
             None,
-            partial(self._upload_sync, image_bytes, destination_path),
+            partial(self._upload_sync, image_bytes, destination_path, "image/png"),
         )
         return url
 
-    def _upload_sync(self, image_bytes: bytes, destination_path: str) -> str:
+    async def upload_video(self, video_bytes: bytes, destination_path: str) -> str:
+        if self._client is None or not self._bucket_name:
+            raise RuntimeError("GCS_BUCKET_NAME is not configured.")
+
+        loop = asyncio.get_running_loop()
+        url = await loop.run_in_executor(
+            None,
+            partial(self._upload_sync, video_bytes, destination_path, "video/mp4"),
+        )
+        return url
+
+    def _upload_sync(self, data: bytes, destination_path: str, content_type: str) -> str:
         bucket = self._client.bucket(self._bucket_name)  # type: ignore[union-attr]
         blob = bucket.blob(destination_path)
-        blob.upload_from_string(image_bytes, content_type="image/png")
+        blob.upload_from_string(data, content_type=content_type)
 
         if self._signing_credentials:
             url: str = blob.generate_signed_url(
