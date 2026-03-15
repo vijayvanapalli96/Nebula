@@ -6,6 +6,7 @@ from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.interleaved_generator import InterleavedGeneratorPort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGeneratorPort
+from app.application.services.media_task_tracker import MediaTaskTracker, get_media_tracker
 from app.application.use_cases.creative_storytelling import CreativeStorytellingUseCase
 from app.application.use_cases.story_engine import StoryEngineUseCase
 from app.application.use_cases.video_generation import VideoGenerationUseCase
@@ -86,6 +87,7 @@ def get_use_case(
         generator=generator,
         image_storage=image_storage,
         video_generator=video_generator,
+        media_tracker=get_media_tracker(),
     )
 
 
