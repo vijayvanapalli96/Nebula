@@ -10,13 +10,15 @@ from pydantic import BaseModel, Field
 from app.application.errors import StoryGenerationError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.core.settings import Settings
-from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata, StoryState
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, Scene, SceneChoice, SceneMetadata, StoryState
 from app.infrastructure.ai.prompts import (
     INITIAL_QUESTIONS_SYSTEM_PROMPT,
+    OPENING_SCENE_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     append_style_seed,
     build_action_prompt,
     build_opening_prompt,
+    build_opening_scene_prompt,
     build_questions_prompt,
 )
 
@@ -48,6 +50,18 @@ class _ScenePayload(BaseModel):
     visual_prompt: str
     narrative_text: str
     choices: list[_SceneChoicePayload] = Field(..., min_length=2, max_length=4)
+
+
+class _OpeningChoicePayload(BaseModel):
+    choice_id: str
+    choice_text: str
+    direction_hint: str
+
+
+class _OpeningScenePayload(BaseModel):
+    scene_title: str
+    scene_description: str
+    choices: list[_OpeningChoicePayload] = Field(..., min_length=2, max_length=4)
 
 
 class GeminiStoryGenerator(StoryGeneratorPort):
@@ -93,6 +107,49 @@ class GeminiStoryGenerator(StoryGeneratorPort):
     async def generate_opening_scene(self, state: StoryState) -> Scene:
         prompt = build_opening_prompt(state)
         return await self._generate_scene(prompt=prompt, genre=state.genre)
+
+    async def generate_opening_scene_from_answers(
+        self, theme: str, character_name: str, answers: list[tuple[str, str]]
+    ) -> OpeningScene:
+        if self._client is None:
+            raise StoryGenerationError("GEMINI_API_KEY is not configured.")
+
+        prompt = build_opening_scene_prompt(theme, character_name, answers)
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=OPENING_SCENE_SYSTEM_PROMPT,
+                    temperature=0.9,
+                    top_p=0.95,
+                    max_output_tokens=1200,
+                    response_mime_type="application/json",
+                ),
+            )
+        except Exception as exc:
+            raise StoryGenerationError(f"Gemini request failed: {exc}") from exc
+
+        raw_text = _extract_response_text(response)
+        payload = _parse_model_json(raw_text)
+
+        try:
+            scene_payload = _OpeningScenePayload.model_validate(payload)
+        except Exception as exc:
+            raise StoryGenerationError(f"Gemini returned invalid opening scene schema: {exc}") from exc
+
+        return OpeningScene(
+            scene_title=scene_payload.scene_title,
+            scene_description=scene_payload.scene_description,
+            choices=[
+                OpeningChoice(
+                    choice_id=c.choice_id,
+                    choice_text=c.choice_text,
+                    direction_hint=c.direction_hint,
+                )
+                for c in scene_payload.choices
+            ],
+        )
 
     async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> Scene:
         prompt = build_action_prompt(state, chosen=chosen)
