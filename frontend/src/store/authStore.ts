@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { auth, googleProvider } from "../lib/firebase";
+import { createUserDocument } from "../services/userService";
 
 // ---------------------------------------------------------------------------
 // Firebase error → human-readable message
@@ -69,11 +70,23 @@ export const useAuthStore = create<AuthState>()((set) => {
     signIn: async (email, password) => {
       set({ actionLoading: true, error: null });
       try {
-        await signInWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged will update `user` automatically.
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        // Block navigation until the backend user document is confirmed.
+        await createUserDocument(credential.user, "password");
       } catch (err: unknown) {
         const code = (err as { code?: string }).code ?? "";
-        set({ error: parseFirebaseError(code) });
+        if (code) {
+          // Firebase auth error
+          set({ error: parseFirebaseError(code) });
+        } else {
+          // Backend user-creation error — sign out so the user isn't left in a
+          // half-authenticated state, then surface a message.
+          await signOut(auth).catch(() => null);
+          set({
+            user: null,
+            error: (err as Error).message ?? "Account setup failed. Please try again.",
+          });
+        }
       } finally {
         set({ actionLoading: false });
       }
@@ -83,10 +96,20 @@ export const useAuthStore = create<AuthState>()((set) => {
     signUp: async (email, password) => {
       set({ actionLoading: true, error: null });
       try {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        // Block navigation until the backend user document is confirmed.
+        await createUserDocument(credential.user, "password");
       } catch (err: unknown) {
         const code = (err as { code?: string }).code ?? "";
-        set({ error: parseFirebaseError(code) });
+        if (code) {
+          set({ error: parseFirebaseError(code) });
+        } else {
+          await signOut(auth).catch(() => null);
+          set({
+            user: null,
+            error: (err as Error).message ?? "Account setup failed. Please try again.",
+          });
+        }
       } finally {
         set({ actionLoading: false });
       }
@@ -96,12 +119,21 @@ export const useAuthStore = create<AuthState>()((set) => {
     signInWithGoogle: async () => {
       set({ actionLoading: true, error: null });
       try {
-        await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(auth, googleProvider);
+        // Block navigation until the backend user document is confirmed.
+        await createUserDocument(result.user, "google");
       } catch (err: unknown) {
         const code = (err as { code?: string }).code ?? "";
-        // Silently ignore popup-closed — the user deliberately dismissed it.
-        if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
+        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+          // User dismissed popup — silent ignore.
+        } else if (code) {
           set({ error: parseFirebaseError(code) });
+        } else {
+          await signOut(auth).catch(() => null);
+          set({
+            user: null,
+            error: (err as Error).message ?? "Account setup failed. Please try again.",
+          });
         }
       } finally {
         set({ actionLoading: false });

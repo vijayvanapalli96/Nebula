@@ -1,50 +1,60 @@
 """
-scripts/seed_themes.py
-──────────────────────
-Seed the Firestore `themes` collection with 10 cinematic storytelling worlds.
+Seed the Firestore `themes` collection with 10 cinematic story themes.
 
-Run from the backend/ directory:
+Usage (from the backend/ directory):
+    python scripts/seed_themes.py
 
-    python -m scripts.seed_themes
-
-Behaviour:
-  - Uses `set(..., merge=True)` so existing documents are NEVER overwritten.
-  - Existing themes are skipped (logged, not silently ignored).
-  - Dry-run support: pass --dry-run to print what *would* be inserted.
+Uses the active gcloud CLI access token so no separate ADC setup is needed.
+Requires: gcloud auth login (already done if you can run gcloud commands).
 """
 from __future__ import annotations
 
-import argparse
-import sys
+import subprocess
 from datetime import datetime, timezone
-from typing import Any
 
-# ── Bootstrap: reuse the existing Firebase Admin singleton ─────────────────
-# Running as `python -m scripts.seed_themes` from backend/ ensures the
-# `app` package is on sys.path.
-from app.infrastructure.firebase.admin import get_db
+import firebase_admin
+from firebase_admin import credentials, firestore
+from google.oauth2.credentials import Credentials as OAuthCredentials
+
+# ── Firebase init — use gcloud CLI token directly ─────────────────────────
+
+def _gcloud_token() -> str:
+    result = subprocess.run(
+        "gcloud auth print-access-token",
+        capture_output=True, text=True, check=True, shell=True,
+    )
+    return result.stdout.strip()
+
+_oauth = OAuthCredentials(token=_gcloud_token())
+firebase_admin.initialize_app(
+    credentials.ApplicationDefault(),  # placeholder; overridden below
+    {"projectId": "disclosure-nlu"},
+)
+# Override the Firestore client to use the gcloud token directly
+from google.cloud import firestore as _fs
+db = _fs.Client(project="disclosure-nlu", credentials=_oauth)
 
 # ── Theme data ─────────────────────────────────────────────────────────────
 
 NOW = datetime.now(timezone.utc)
 
-THEMES: list[dict[str, Any]] = [
+THEMES = [
     {
         "themeId": "cyberpunk-noir",
         "title": "Cyberpunk Noir",
         "description": (
-            "A neon-drenched megacity choked with corporate espionage, rogue AI, "
-            "and underground resistance. Every rain-slicked alley conceals a deal "
-            "gone wrong — and the line between human and machine is the last moral "
-            "boundary left."
+            "A neon-drenched megacity drowning in corruption, rogue AI, and "
+            "corporate conspiracies. Every flickering hologram hides a lie, "
+            "every shadow conceals a mercenary, and the only currency that "
+            "matters is leverage."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "sci-fi",
         "defaultToneTags": ["dark", "mysterious", "high-tech", "gritty"],
         "promptHints": {
-            "visualStyle": "cinematic neon noir, rain-soaked futuristic cityscapes, lens flares, deep shadows",
-            "narrativeStyle": "tense, investigative, morally complex, first-person internal monologue",
+            "visualStyle": "cinematic neon noir, rain-slicked futuristic streets, holographic ads, lens flares",
+            "narrativeStyle": "tense, investigative, morally complex, first-person noir monologue",
         },
         "popularityScore": 100,
         "active": True,
@@ -53,20 +63,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "noir-detective",
-        "title": "Noir Detective",
+        "title": "The Last Detective",
         "description": (
-            "Post-war shadows fall long across a city rotting from the inside. "
-            "A world-weary detective takes cases that the law won't touch, "
-            "navigating corruption, femmes fatales, and buried secrets that "
-            "powerful people will kill to keep."
+            "1940s. Rain-soaked streets, cigarette smoke, and a city that eats "
+            "the innocent. You're the only PI willing to take the cases the "
+            "police bury. Every dame with sad eyes is a loaded gun, and every "
+            "answer unlocks a darker question."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
-        "category": "mystery",
-        "defaultToneTags": ["cynical", "atmospheric", "suspenseful", "moody"],
+        "category": "crime",
+        "defaultToneTags": ["gritty", "melancholic", "suspenseful", "cynical"],
         "promptHints": {
-            "visualStyle": "black-and-white film grain, hard shadows, smoke-filled offices, wet cobblestones",
-            "narrativeStyle": "hard-boiled voiceover, fatalistic tone, sharp dialogue, slow-burn reveals",
+            "visualStyle": "black and white noir, deep shadows, rain-soaked alleyways, smoky interiors",
+            "narrativeStyle": "hardboiled, sardonic inner monologue, slow-burn mystery reveals",
         },
         "popularityScore": 88,
         "active": True,
@@ -75,20 +85,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "fantasy-kingdom",
-        "title": "Fantasy Kingdom",
+        "title": "Crown of Ash",
         "description": (
-            "Throne rooms and battlefields, bloodlines and betrayals. An ancient "
-            "kingdom fractures as old alliances crumble and a forgotten power stirs "
-            "in the deep forests. Magic is real — and it demands a price only the "
-            "willing can pay."
+            "A crumbling empire balanced on the edge of a blade. Ancient magic "
+            "resurges, noble houses scheme behind silk curtains, and a forgotten "
+            "heir must decide whether to save a kingdom that was built on blood "
+            "or burn it down to start again."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "fantasy",
-        "defaultToneTags": ["epic", "political", "mythic", "dangerous"],
+        "defaultToneTags": ["epic", "political", "dark-fantasy", "dramatic"],
         "promptHints": {
-            "visualStyle": "painterly high fantasy, torchlit castles, sweeping landscapes, rich heraldic colors",
-            "narrativeStyle": "epic omniscient narration, courtly dialogue, high stakes, multi-faction intrigue",
+            "visualStyle": "sweeping medieval landscapes, candlelit throne rooms, decaying grandeur, stormy skies",
+            "narrativeStyle": "epic and lyrical, morally ambiguous choices, rich world-building",
         },
         "popularityScore": 92,
         "active": True,
@@ -97,20 +107,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "space-exploration",
-        "title": "Space Exploration",
+        "title": "The Outer Drift",
         "description": (
-            "Beyond the last charted star, a lone crew pushes into the unknown. "
-            "First contact, dying suns, and the terrifying silence between worlds. "
-            "The universe is vast, indifferent — and something out there has been "
-            "waiting a very long time."
+            "Humanity's last colony ship drifts beyond the mapped stars. The "
+            "crew is fractured, the AI navigator is behaving strangely, and an "
+            "alien signal pulses from a planet that shouldn't exist. First "
+            "contact was never supposed to look like this."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "sci-fi",
-        "defaultToneTags": ["awe-inspiring", "lonely", "tense", "philosophical"],
+        "defaultToneTags": ["isolated", "awe-inspiring", "tense", "philosophical"],
         "promptHints": {
-            "visualStyle": "hard sci-fi cinematography, deep-space vistas, bioluminescent alien worlds, stark spacecraft interiors",
-            "narrativeStyle": "slow-burn discovery, crew dynamics, existential stakes, scientific realism with cosmic horror undertones",
+            "visualStyle": "vast cosmic vistas, dim spacecraft interiors, alien bioluminescence, deep-space silence",
+            "narrativeStyle": "slow-burn dread, existential wonder, crew dynamics under pressure",
         },
         "popularityScore": 85,
         "active": True,
@@ -119,19 +129,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "psychological-thriller",
-        "title": "Psychological Thriller",
+        "title": "Fractured Mind",
         "description": (
-            "Reality frays at the edges. Memory cannot be trusted, and the greatest "
-            "threat may already be inside your own mind. A character study of obsession, "
-            "identity, and the terrifying cost of knowing the truth."
+            "Reality is unreliable and so is memory. You wake in a white room "
+            "with no past and a name that doesn't feel like yours. The doctors "
+            "smile too much and the orderly leaves notes under your pillow. "
+            "The truth is in your head — if it can be trusted."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "thriller",
-        "defaultToneTags": ["paranoid", "unsettling", "cerebral", "claustrophobic"],
+        "defaultToneTags": ["unsettling", "surreal", "claustrophobic", "tense"],
         "promptHints": {
-            "visualStyle": "desaturated palette with jarring color intrusions, distorted angles, fractured mirrors, clinical environments",
-            "narrativeStyle": "unreliable narrator, escalating dread, fragmented timelines, sharp psychological reveals",
+            "visualStyle": "clinical whites bleeding into distorted hallways, flickering lights, unreliable flashbacks",
+            "narrativeStyle": "unreliable narrator, fragmented memories, escalating paranoia",
         },
         "popularityScore": 90,
         "active": True,
@@ -140,20 +151,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "post-apocalyptic",
-        "title": "Post-Apocalyptic",
+        "title": "After the Signal",
         "description": (
-            "Civilisation ended forty years ago. The survivors built something new "
-            "from the wreckage — brutal, tribal, and fragile. In the wasteland, "
-            "every resource is a reason to fight and every stranger is either a "
-            "potential ally or your next enemy."
+            "Three years after a signal from the sky silenced every electronic "
+            "device on Earth, the survivors have divided into warring factions "
+            "across a shattered America. You control a caravan that carries the "
+            "only working radio — and everyone wants it."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
-        "category": "sci-fi",
-        "defaultToneTags": ["bleak", "survival", "hopeful-undercurrent", "violent"],
+        "category": "post-apocalyptic",
+        "defaultToneTags": ["bleak", "survival", "hopeful-undercurrent", "brutal"],
         "promptHints": {
-            "visualStyle": "dust-soaked golden hour, rusted infrastructure, makeshift settlements, scorched horizons",
-            "narrativeStyle": "survival-focused, morally grey characters, found-family dynamics, sparse haunting prose",
+            "visualStyle": "overgrown ruins, harsh sunlight on desolation, makeshift settlements, dust and ash",
+            "narrativeStyle": "resource tension, moral trade-offs, community vs. self-preservation",
         },
         "popularityScore": 87,
         "active": True,
@@ -162,20 +173,21 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "political-conspiracy",
-        "title": "Political Conspiracy",
+        "title": "The Shadow Cabinet",
         "description": (
-            "Behind every election, every war, every crisis — a shadow network "
-            "pulling the strings. An investigator stumbles onto a thread that "
-            "unravels decades of carefully constructed lies, putting everyone they "
-            "love in the crosshairs of the state."
+            "Inside the halls of power, the real decisions are made in "
+            "soundproofed rooms by people whose names never appear on ballots. "
+            "You've stumbled onto something that could collapse governments — "
+            "now three intelligence agencies and one very patient assassin "
+            "know your name."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "thriller",
-        "defaultToneTags": ["paranoid", "intelligent", "high-stakes", "morally-complex"],
+        "defaultToneTags": ["paranoid", "sophisticated", "high-stakes", "intelligent"],
         "promptHints": {
-            "visualStyle": "clean modernist architecture with oppressive scale, CCTV aesthetics, hushed back-rooms, coded documents",
-            "narrativeStyle": "layered dialogue with hidden meaning, escalating stakes, institutional menace, journalistic precision",
+            "visualStyle": "marble corridors, encrypted screens, grey European cities, elegant danger",
+            "narrativeStyle": "layered conspiracy, measured dialogue, betrayal at every level",
         },
         "popularityScore": 83,
         "active": True,
@@ -184,20 +196,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "supernatural-mystery",
-        "title": "Supernatural Mystery",
+        "title": "What the Dark Keeps",
         "description": (
-            "A quiet coastal town. Three disappearances in thirty years, all on the "
-            "same night. The official explanation never made sense — and now you are "
-            "here, and the town is watching. Something old has woken up, and it "
-            "remembers you."
+            "A small coastal town where the fog never fully lifts and the "
+            "residents stop making eye contact after dark. A series of "
+            "disappearances points to something old that made a deal with the "
+            "founders — and the bill is now due."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "horror",
-        "defaultToneTags": ["eerie", "folkloric", "slow-burn", "dread"],
+        "defaultToneTags": ["eerie", "atmospheric", "dread", "mystery"],
         "promptHints": {
-            "visualStyle": "muted coastal palette, fog, practical lighting, decayed Victorian architecture, liminal spaces",
-            "narrativeStyle": "atmospheric dread, unreliable locals, escalating weirdness, Gothic sensibility with modern grounding",
+            "visualStyle": "fog-drenched coastal New England, candlelight, decaying Victorian architecture",
+            "narrativeStyle": "slow dread, Lovecraftian unease, community secrets unravelling",
         },
         "popularityScore": 89,
         "active": True,
@@ -206,20 +218,20 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "ancient-mythology",
-        "title": "Ancient Mythology",
+        "title": "Blood of Olympus",
         "description": (
-            "The age of heroes has ended — or so the gods would have you believe. "
-            "Born of divine blood and mortal ambition, you walk a world where "
-            "monsters are real, oracles speak truth wrapped in riddles, and the "
-            "Olympians play chess with human lives."
+            "The gods are dying and they're taking the world with them. Mortals "
+            "once blessed are now cursed with divine burdens. You carry the "
+            "ichor of a forgotten deity and every monster, oracle, and "
+            "demigod on the Mediterranean knows your scent."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
-        "category": "fantasy",
-        "defaultToneTags": ["epic", "fatalistic", "divine", "brutal"],
+        "category": "mythology",
+        "defaultToneTags": ["epic", "mythic", "tragic", "visceral"],
         "promptHints": {
-            "visualStyle": "sun-bleached marble, wine-dark seas, Mediterranean light, divine radiance contrasted with mortal grit",
-            "narrativeStyle": "heroic epic register, fate and free will tension, divine intervention, tragic arc potential",
+            "visualStyle": "sun-bleached marble ruins, wine-dark seas, divine golden light, blood and laurels",
+            "narrativeStyle": "epic tragedy structure, hubris and fate, divine interference in mortal choices",
         },
         "popularityScore": 86,
         "active": True,
@@ -228,87 +240,52 @@ THEMES: list[dict[str, Any]] = [
     },
     {
         "themeId": "futuristic-rebellion",
-        "title": "Futuristic Rebellion",
+        "title": "The Spark Protocol",
         "description": (
-            "A gleaming utopia built on invisible chains. The lower tiers have had "
-            "enough. A movement born in encrypted messages and back-channel meetings "
-            "is about to ignite — and the system's counter-response will be swift, "
-            "ruthless, and total."
+            "In 2147, the Collective controls every calorie, every breath of "
+            "clean air, every second of bandwidth. You've just received an "
+            "encrypted message that proves the system was never designed to "
+            "serve humanity — and someone inside the Collective wants it "
+            "torn down from within."
         ),
         "thumbnailUrl": "",
         "heroImageUrl": "",
         "category": "sci-fi",
-        "defaultToneTags": ["revolutionary", "urgent", "tech-dystopian", "collectivist"],
+        "defaultToneTags": ["rebellious", "urgent", "dystopian", "idealistic"],
         "promptHints": {
-            "visualStyle": "stark contrast between gleaming elite towers and grimy industrial lower districts, protest iconography, propaganda aesthetics",
-            "narrativeStyle": "ensemble cast, ideological tension, sacrifice and betrayal, momentum-driven pacing",
+            "visualStyle": "stark brutalist architecture, propaganda screens, hidden underground warmth vs. sterile surfaces",
+            "narrativeStyle": "revolutionary urgency, trust and betrayal within resistance cells, escalating stakes",
         },
-        "popularityScore": 84,
+        "popularityScore": 94,
         "active": True,
         "createdAt": NOW,
         "updatedAt": NOW,
     },
 ]
 
+
 # ── Seed function ──────────────────────────────────────────────────────────
 
-
-def seed_themes(*, dry_run: bool = False) -> None:
-    """
-    Insert theme documents into Firestore.
-
-    Uses ``set(..., merge=True)`` which means:
-      - New documents are created in full.
-      - Existing documents have only the provided fields merged — no data loss.
-
-    If you want a hard reset instead, replace with ``.set(theme)`` (no merge).
-    """
-    db = get_db()
+def seed_themes() -> None:
     collection = db.collection("themes")
-
     inserted = 0
     skipped = 0
 
     for theme in THEMES:
-        theme_id: str = theme["themeId"]
-        ref = collection.document(theme_id)
+        doc_ref = collection.document(theme["themeId"])
+        doc = doc_ref.get()
 
-        if dry_run:
-            print(f"  [DRY-RUN] Would upsert → themes/{theme_id}")
-            inserted += 1
-            continue
-
-        # Check existence so we can log skip vs insert clearly.
-        snapshot = ref.get()
-        if snapshot.exists:
-            print(f"  SKIP   themes/{theme_id}  (already exists)")
+        if doc.exists:
+            print(f"  ⏭  SKIP  {theme['themeId']} (already exists)")
             skipped += 1
         else:
-            ref.set(theme, merge=True)
-            print(f"  INSERT themes/{theme_id}  ✓")
+            doc_ref.set(theme)
+            print(f"  ✅ INSERT {theme['themeId']}")
             inserted += 1
 
-    print()
-    if dry_run:
-        print(f"Dry-run complete. Would insert {inserted} theme(s).")
-    else:
-        print(f"Done. Inserted: {inserted}  |  Skipped: {skipped}  |  Total: {len(THEMES)}")
+    print(f"\nDone — {inserted} inserted, {skipped} skipped.")
 
-
-# ── Entry point ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Seed Firestore themes collection.")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print what would be inserted without touching Firestore.",
-    )
-    args = parser.parse_args()
-
-    print(f"\nSeeding {len(THEMES)} themes into Firestore collection `themes`…\n")
-    try:
-        seed_themes(dry_run=args.dry_run)
-    except Exception as exc:
-        print(f"\nERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
+    print(f"Seeding `themes` collection on project disclosure-nlu …\n")
+    seed_themes()

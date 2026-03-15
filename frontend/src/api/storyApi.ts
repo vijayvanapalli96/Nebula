@@ -1,3 +1,4 @@
+import { auth } from '../lib/firebase';
 import type { Question, QuestionOption } from '../store/storyCreationStore';
 import type { Scene } from '../store/storySessionStore';
 
@@ -15,11 +16,25 @@ const OPTION_IMAGES = [
 
 const BASE_URL = 'https://nebula-backend-979585801507.us-central1.run.app';
 
+/**
+ * Returns the current user's Firebase ID token, refreshing it if near expiry.
+ * Throws if there is no signed-in user (should never happen inside ProtectedRoute).
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No authenticated user.');
+  const token = await user.getIdToken();
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 /** POST /story/questions — fetches AI-generated questions for the given theme/genre. */
 export async function fetchStoryQuestions(theme: string): Promise<StoryQuestionsResponse> {
   const res = await fetch(`${BASE_URL}/story/questions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ theme }),
   });
 
@@ -55,7 +70,7 @@ export interface StoryOpeningRequest {
 export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<Scene> {
   const res = await fetch(`${BASE_URL}/story/opening`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
