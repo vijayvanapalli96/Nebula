@@ -149,6 +149,55 @@ class GeminiStoryGenerator(StoryGeneratorPort):
 
         return image.image_bytes
 
+    async def generate_option_image_grid(self, prompts: list[str]) -> bytes:
+        """Generate a single 2x2 grid image from four scene prompts.
+
+        Builds a composite prompt instructing Imagen to create a 2x2 grid
+        where each quadrant corresponds to one of the provided prompts.
+        Returns the full grid image as PNG bytes.
+        """
+        if self._client is None:
+            raise StoryGenerationError("GEMINI_API_KEY is not configured.")
+        if len(prompts) != 4:
+            raise StoryGenerationError(f"Grid requires exactly 4 prompts, got {len(prompts)}.")
+
+        grid_prompt = (
+            "Create a single image divided into a perfectly even 2x2 grid with thin white dividing lines. "
+            "Each quadrant contains a distinct, self-contained scene. "
+            "Top-left quadrant: " + prompts[0] + ". "
+            "Top-right quadrant: " + prompts[1] + ". "
+            "Bottom-left quadrant: " + prompts[2] + ". "
+            "Bottom-right quadrant: " + prompts[3] + ". "
+            "Cinematic lighting, high detail, concept art style. "
+            "The four scenes must be clearly separated into equal quadrants."
+        )
+
+        import asyncio
+        from functools import partial
+
+        try:
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    self._client.models.generate_images,
+                    model=self._settings.imagen_model,
+                    prompt=grid_prompt,
+                    config=types.GenerateImagesConfig(number_of_images=1),
+                ),
+            )
+        except Exception as exc:
+            raise StoryGenerationError(f"Imagen grid request failed: {exc}") from exc
+
+        if not response.generated_images:
+            raise StoryGenerationError("Imagen returned no grid images.")
+
+        image = response.generated_images[0].image
+        if image is None or not image.image_bytes:
+            raise StoryGenerationError("Imagen returned empty grid image data.")
+
+        return image.image_bytes
+
     async def generate_opening_scene(self, state: StoryState) -> Scene:
         prompt = build_opening_prompt(state)
         return await self._generate_scene(prompt=prompt, genre=state.genre)
