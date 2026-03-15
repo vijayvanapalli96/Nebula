@@ -1,6 +1,6 @@
 # Firestore Story Themes Schema
 
-Collection: `story_themes` (configurable via `FIREBASE_THEMES_COLLECTION`)
+Collection: `themes` (configurable via `FIREBASE_THEMES_COLLECTION`)
 
 Document ID:
 - `id` from the seed payload (for example: `genre-noir`)
@@ -21,6 +21,6 @@ Seed command:
 
 ```bash
 python scripts/firebase/seed_story_themes.py \
-  --project-id YOUR_GCP_PROJECT_ID \
-  --collection story_themes
+  --project-id disclosure-nlu \
+  --collection themes
 ```

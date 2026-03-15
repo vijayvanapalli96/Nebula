@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -68,26 +69,32 @@ def seed_story_themes(
 def parse_args() -> argparse.Namespace:
     script_dir = Path(__file__).resolve().parent
     default_seed_file = script_dir / "story_themes.seed.json"
+    default_project_id = os.getenv("FIREBASE_PROJECT_ID", "")
 
     parser = argparse.ArgumentParser(
         description="Seed Firestore story themes collection.",
     )
     parser.add_argument(
         "--project-id",
-        required=True,
+        default=default_project_id,
         help="GCP project id containing the Firestore database.",
     )
     parser.add_argument(
         "--collection",
-        default="story_themes",
-        help="Firestore collection name (default: story_themes).",
+        default="themes",
+        help="Firestore collection name (default: themes).",
     )
     parser.add_argument(
         "--seed-file",
         default=str(default_seed_file),
         help="Path to JSON file with themes payload.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.project_id:
+        parser.error(
+            "--project-id is required (or set FIREBASE_PROJECT_ID in environment).",
+        )
+    return args
 
 
 if __name__ == "__main__":

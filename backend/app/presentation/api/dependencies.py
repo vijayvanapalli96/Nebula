@@ -84,11 +84,28 @@ def get_video_generator() -> VideoGeneratorPort:
 def _get_firestore_client_singleton() -> object | None:
     settings = get_settings()
     project_id = settings.firebase_project_id.strip()
-    if not project_id:
+    credentials_path = settings.firebase_credentials_path.strip()
+    if not project_id and not credentials_path:
         return None
 
     try:
         from google.cloud import firestore
+        if credentials_path:
+            from google.oauth2 import service_account
+
+            credentials = service_account.Credentials.from_service_account_file(
+                credentials_path,
+            )
+            resolved_project_id = project_id or credentials.project_id
+            if not resolved_project_id:
+                raise ValueError(
+                    "FIREBASE_PROJECT_ID is not set and project_id is missing in "
+                    "FIREBASE_CREDENTIALS_PATH.",
+                )
+            return firestore.Client(
+                project=resolved_project_id,
+                credentials=credentials,
+            )
 
         return firestore.Client(project=project_id)
     except Exception as exc:  # pragma: no cover - defensive runtime fallback

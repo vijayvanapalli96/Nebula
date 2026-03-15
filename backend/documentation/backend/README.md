@@ -97,8 +97,9 @@ Update `.env`:
 ```env
 GEMINI_API_KEY=your_google_ai_studio_api_key
 GEMINI_MODEL=gemini-2.5-flash
-FIREBASE_PROJECT_ID=your_gcp_project_id
-FIREBASE_THEMES_COLLECTION=story_themes
+FIREBASE_PROJECT_ID=disclosure-nlu
+FIREBASE_CREDENTIALS_PATH=/absolute/path/to/firebase-service-account.json
+FIREBASE_THEMES_COLLECTION=themes
 ```
 
 ## Run The Service
@@ -192,7 +193,8 @@ Returns active in-memory story cards for the landing page.
 
 Returns active story themes used by the frontend genre carousel.
 If `FIREBASE_PROJECT_ID` is configured, themes are read from Firestore collection
-`FIREBASE_THEMES_COLLECTION` (default: `story_themes`); otherwise in-memory defaults are returned.
+`FIREBASE_THEMES_COLLECTION` (default: `themes`); otherwise in-memory defaults are returned.
+For local runs, set `FIREBASE_CREDENTIALS_PATH` to a Firebase service account key file.
 
 ### `GET /health`
 
@@ -241,8 +243,8 @@ Create/update the story themes collection:
 ```bash
 cd backend
 python scripts/firebase/seed_story_themes.py \
-  --project-id YOUR_GCP_PROJECT_ID \
-  --collection story_themes
+  --project-id disclosure-nlu \
+  --collection themes
 ```
 
 Schema reference:
