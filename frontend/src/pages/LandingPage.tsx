@@ -57,14 +57,14 @@ const LandingNav: React.FC = () => {
         {/* CTAs */}
         <div className="flex items-center gap-3">
           <Link
-            to="/dashboard"
+            to="/login"
             className="hidden sm:inline-block text-xs font-semibold text-gray-400 hover:text-white transition"
           >
             Sign In
           </Link>
           <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
             <Link
-              to="/dashboard"
+              to="/signup"
               className="inline-block px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold tracking-wide transition glow-purple"
             >
               Get Started
@@ -154,7 +154,7 @@ const HeroSection: React.FC = () => (
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2">
         <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
           <Link
-            to="/dashboard"
+            to="/signup"
             className="inline-block px-8 py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm tracking-wide transition glow-purple"
           >
             ? Start Your Journey
@@ -335,7 +335,7 @@ const GenreShowcaseSection: React.FC = () => (
 
       <div className="text-center">
         <Link
-          to="/dashboard"
+          to="/login"
           className="inline-block px-8 py-3 rounded-2xl border text-white text-sm font-semibold tracking-wide transition"
           style={{ borderColor: "rgba(255,255,255,0.12)" }}
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
@@ -427,7 +427,7 @@ const CTASection: React.FC = () => (
         </p>
         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}>
           <Link
-            to="/dashboard"
+            to="/signup"
             className="inline-block px-10 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm tracking-wide transition glow-purple"
           >
             ? Begin Your Adventure
