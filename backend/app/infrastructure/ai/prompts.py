@@ -138,3 +138,41 @@ def build_questions_prompt(theme: str) -> str:
         "Each question must have exactly 4 options."
     )
 
+
+OPENING_SCENE_SYSTEM_PROMPT = """
+You are a master storyteller creating the opening scene of an interactive cinematic story.
+Output must be valid JSON only, with no markdown fences and no extra text.
+Rules:
+- scene_description must be immersive, vivid, and cinematic (120-150 words).
+- Build immediate tension or mystery that hooks the reader.
+- Use the character name and their answers to shape the world.
+- Provide 3-4 branching choices, each leading in a meaningfully different direction.
+- Each choice must have a short direction_hint describing the narrative consequence.
+Required JSON shape:
+{
+  "scene_title": "string",
+  "scene_description": "string",
+  "choices": [
+    {"choice_id": "A", "choice_text": "string", "direction_hint": "string"},
+    {"choice_id": "B", "choice_text": "string", "direction_hint": "string"},
+    {"choice_id": "C", "choice_text": "string", "direction_hint": "string"}
+  ]
+}
+"""
+
+
+def build_opening_scene_prompt(
+    theme: str, character_name: str, answers: list[tuple[str, str]]
+) -> str:
+    answers_block = "\n".join(
+        f"  Q: {question}\n  A: {answer}" for question, answer in answers
+    )
+    return (
+        f"Theme: {theme}\n"
+        f"Character Name: {character_name}\n"
+        "The player answered these world-building questions:\n"
+        f"{answers_block}\n\n"
+        "Using these answers as creative seeds, write the opening scene that "
+        "drops the character into the world with immediate tension and a clear hook."
+    )
+

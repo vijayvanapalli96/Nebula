@@ -3,13 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.domain.models.story import InitialQuestion, Scene
+from app.domain.models.story import InitialQuestion, OpeningScene, Scene
 
 
 @dataclass(frozen=True)
 class QuestionsResult:
     theme: str
     questions: list[InitialQuestion]
+
+
+@dataclass(frozen=True)
+class OpeningSceneResult:
+    theme: str
+    character_name: str
+    scene: OpeningScene
 
 
 @dataclass(frozen=True)

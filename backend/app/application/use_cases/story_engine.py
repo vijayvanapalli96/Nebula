@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
-from app.application.dto.story_results import QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
+from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.application.errors import InvalidChoiceError, SessionNotFoundError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
@@ -19,6 +19,19 @@ class StoryEngineUseCase:
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
         questions = await self._generator.generate_initial_questions(command.theme.strip())
         return QuestionsResult(theme=command.theme.strip(), questions=questions)
+
+    async def generate_opening_scene(self, command: GenerateOpeningSceneCommand) -> OpeningSceneResult:
+        answers_tuples = [(a.question, a.answer) for a in command.answers]
+        scene = await self._generator.generate_opening_scene_from_answers(
+            theme=command.theme.strip(),
+            character_name=command.character_name.strip(),
+            answers=answers_tuples,
+        )
+        return OpeningSceneResult(
+            theme=command.theme.strip(),
+            character_name=command.character_name.strip(),
+            scene=scene,
+        )
 
     async def start_story(self, command: StartStoryCommand) -> StoryStartResult:
         state = StoryState(

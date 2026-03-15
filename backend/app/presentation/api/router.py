@@ -9,6 +9,8 @@ from app.presentation.api.dependencies import get_use_case
 from app.presentation.api.schemas import (
     GenerateQuestionsRequest,
     GenerateQuestionsResponse,
+    OpeningSceneRequest,
+    OpeningSceneResponse,
     StoryActionRequest,
     StoryActionResponse,
     StoryCardResponse,
@@ -16,6 +18,8 @@ from app.presentation.api.schemas import (
     StoryStartResponse,
     to_action_command,
     to_action_response,
+    to_opening_scene_command,
+    to_opening_scene_response,
     to_questions_command,
     to_questions_response,
     to_start_command,
@@ -43,6 +47,25 @@ async def generate_questions(
     try:
         result = await use_case.generate_questions(to_questions_command(request))
         return to_questions_response(result)
+    except StoryGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/story/opening",
+    response_model=OpeningSceneResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def generate_opening_scene(
+    request: OpeningSceneRequest,
+    use_case: StoryEngineUseCase = Depends(get_use_case),
+) -> OpeningSceneResponse:
+    try:
+        result = await use_case.generate_opening_scene(to_opening_scene_command(request))
+        return to_opening_scene_response(result)
     except StoryGenerationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
