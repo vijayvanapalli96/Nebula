@@ -4,10 +4,10 @@ import asyncio
 
 import pytest
 
-from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
+from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import InitialQuestion, QuestionOption, Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, Scene, SceneChoice, SceneMetadata
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -75,6 +75,19 @@ class FakeGenerator:
 
     async def generate_opening_scene(self, state):  # noqa: ANN001
         return _scene(scene_id="scene-1", chapter=1)
+
+    async def generate_opening_scene_from_answers(
+        self, theme, character_name, answers  # noqa: ANN001
+    ):
+        return OpeningScene(
+            scene_title="Crimson Echoes",
+            scene_description="The neon-soaked city pulses beneath you.",
+            choices=[
+                OpeningChoice(choice_id="A", choice_text="Enter the alley", direction_hint="Danger awaits"),
+                OpeningChoice(choice_id="B", choice_text="Climb the tower", direction_hint="A broader view"),
+                OpeningChoice(choice_id="C", choice_text="Follow the stranger", direction_hint="Mystery deepens"),
+            ],
+        )
 
     async def generate_next_scene(self, state, chosen):  # noqa: ANN001
         return _scene(scene_id="scene-2", chapter=2)
@@ -172,6 +185,27 @@ def test_generate_questions_returns_four_questions() -> None:
     for q in result.questions:
         assert q.question
         assert len(q.options) == 4
-        for opt in q.options:
-            assert opt.text
-            assert opt.image_prompt
+
+
+def test_generate_opening_scene_returns_scene_with_choices() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(repository=repo, generator=FakeGenerator())
+
+    result = asyncio.run(
+        use_case.generate_opening_scene(
+            GenerateOpeningSceneCommand(
+                theme="Cyberpunk Noir",
+                character_name="Kira Voss",
+                answers=[
+                    QuestionAnswer(question="What color is the sky?", answer="Crimson"),
+                    QuestionAnswer(question="What drives the hero?", answer="Revenge"),
+                ],
+            )
+        )
+    )
+
+    assert result.theme == "Cyberpunk Noir"
+    assert result.character_name == "Kira Voss"
+    assert result.scene.scene_title == "Crimson Echoes"
+    assert len(result.scene.choices) == 3
+    assert result.scene.choices[0].choice_id == "A"

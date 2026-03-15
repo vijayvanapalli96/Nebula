@@ -5,8 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
-from app.application.dto.story_results import QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
+from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.domain.models.story import HistoryEntry, Scene, StoryState
 
 
@@ -106,6 +106,31 @@ class GenerateQuestionsResponse(BaseModel):
     questions: list[QuestionResponse] = Field(..., min_length=1)
 
 
+class AnswerInput(BaseModel):
+    question: str = Field(..., min_length=1, description="The question text.")
+    answer: str = Field(..., min_length=1, description="The selected answer.")
+
+
+class OpeningSceneRequest(BaseModel):
+    theme: str = Field(..., min_length=1, description="Story theme.")
+    character_name: str = Field(..., min_length=1, description="Player character name.")
+    answers: list[AnswerInput] = Field(..., min_length=1, description="Answered questions.")
+
+
+class OpeningChoiceResponse(BaseModel):
+    choice_id: str = Field(..., description="Choice identifier.")
+    choice_text: str = Field(..., min_length=1, description="Choice text shown to the player.")
+    direction_hint: str = Field(..., min_length=1, description="Hint about narrative direction.")
+
+
+class OpeningSceneResponse(BaseModel):
+    theme: str
+    character_name: str
+    scene_title: str
+    scene_description: str
+    choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
+
+
 def to_start_command(request: StoryStartRequest) -> StartStoryCommand:
     return StartStoryCommand(
         genre=request.genre,
@@ -188,6 +213,31 @@ def to_history_entry_response(entry: HistoryEntry) -> HistoryEntryResponse:
 
 def to_questions_command(request: GenerateQuestionsRequest) -> GenerateQuestionsCommand:
     return GenerateQuestionsCommand(theme=request.theme)
+
+
+def to_opening_scene_command(request: OpeningSceneRequest) -> GenerateOpeningSceneCommand:
+    return GenerateOpeningSceneCommand(
+        theme=request.theme,
+        character_name=request.character_name,
+        answers=[QuestionAnswer(question=a.question, answer=a.answer) for a in request.answers],
+    )
+
+
+def to_opening_scene_response(result: OpeningSceneResult) -> OpeningSceneResponse:
+    return OpeningSceneResponse(
+        theme=result.theme,
+        character_name=result.character_name,
+        scene_title=result.scene.scene_title,
+        scene_description=result.scene.scene_description,
+        choices=[
+            OpeningChoiceResponse(
+                choice_id=c.choice_id,
+                choice_text=c.choice_text,
+                direction_hint=c.direction_hint,
+            )
+            for c in result.scene.choices
+        ],
+    )
 
 
 def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:

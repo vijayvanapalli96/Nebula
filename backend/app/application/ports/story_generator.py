@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.models.story import InitialQuestion, Scene, SceneChoice, StoryState
+from app.domain.models.story import InitialQuestion, OpeningScene, Scene, SceneChoice, StoryState
 
 
 class StoryGeneratorPort(Protocol):
@@ -14,6 +14,11 @@ class StoryGeneratorPort(Protocol):
         ...
 
     async def generate_opening_scene(self, state: StoryState) -> Scene:
+        ...
+
+    async def generate_opening_scene_from_answers(
+        self, theme: str, character_name: str, answers: list[tuple[str, str]]
+    ) -> OpeningScene:
         ...
 
     async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> Scene:

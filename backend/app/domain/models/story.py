@@ -58,6 +58,20 @@ class InitialQuestion:
 
 
 @dataclass
+class OpeningChoice:
+    choice_id: str
+    choice_text: str
+    direction_hint: str
+
+
+@dataclass
+class OpeningScene:
+    scene_title: str
+    scene_description: str
+    choices: list[OpeningChoice]
+
+
+@dataclass
 class StoryState:
     session_id: str
     genre: str
