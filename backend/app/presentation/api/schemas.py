@@ -5,8 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.application.dto.story_commands import ApplyActionCommand, StartStoryCommand
-from app.application.dto.story_results import StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
+from app.application.dto.story_results import QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.domain.models.story import HistoryEntry, Scene, StoryState
 
 
@@ -87,6 +87,24 @@ class StoryCardResponse(BaseModel):
     choices_available: int = 0
 
 
+class GenerateQuestionsRequest(BaseModel):
+    theme: str = Field(..., min_length=1, description="Story theme to generate questions for.")
+
+
+class QuestionOptionResponse(BaseModel):
+    options: list[str] = Field(..., min_length=4, max_length=4)
+
+
+class QuestionResponse(BaseModel):
+    question: str = Field(..., min_length=1, description="The question text.")
+    options: list[str] = Field(..., min_length=4, max_length=4, description="Answer options.")
+
+
+class GenerateQuestionsResponse(BaseModel):
+    theme: str
+    questions: list[QuestionResponse] = Field(..., min_length=1)
+
+
 def to_start_command(request: StoryStartRequest) -> StartStoryCommand:
     return StartStoryCommand(
         genre=request.genre,
@@ -164,5 +182,19 @@ def to_history_entry_response(entry: HistoryEntry) -> HistoryEntryResponse:
         choice_id=entry.choice_id,
         scene_id=entry.scene_id,
         created_at=entry.created_at,
+    )
+
+
+def to_questions_command(request: GenerateQuestionsRequest) -> GenerateQuestionsCommand:
+    return GenerateQuestionsCommand(theme=request.theme)
+
+
+def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
+    return GenerateQuestionsResponse(
+        theme=result.theme,
+        questions=[
+            QuestionResponse(question=q.question, options=list(q.options))
+            for q in result.questions
+        ],
     )
 

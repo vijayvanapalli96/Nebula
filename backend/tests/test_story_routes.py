@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.dto.story_results import StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_results import QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.application.errors import SessionNotFoundError
-from app.domain.models.story import Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
 from app.presentation.api.dependencies import get_use_case
 
@@ -31,6 +31,29 @@ def _scene(scene_id: str, chapter: int) -> Scene:
 
 
 class FakeUseCase:
+    async def generate_questions(self, command):  # noqa: ANN001
+        return QuestionsResult(
+            theme=command.theme,
+            questions=[
+                InitialQuestion(
+                    question="What color is the sky?",
+                    options=["Red", "Blue", "Green", "Black"],
+                ),
+                InitialQuestion(
+                    question="What drives the hero?",
+                    options=["Revenge", "Curiosity", "Love", "Duty"],
+                ),
+                InitialQuestion(
+                    question="What lurks in the shadows?",
+                    options=["Ghosts", "Machines", "Beasts", "Nothing"],
+                ),
+                InitialQuestion(
+                    question="How does the story end?",
+                    options=["In flames", "With a whisper", "With a dance", "Silently"],
+                ),
+            ],
+        )
+
     async def start_story(self, command):  # noqa: ANN001
         return StoryStartResult(session_id="session-1", scene=_scene(scene_id="scene-1", chapter=1))
 
@@ -101,4 +124,27 @@ def test_list_stories_route_returns_cards(client: TestClient) -> None:
     assert len(body) == 1
     assert body[0]["session_id"] == "session-1"
     assert body[0]["choices_available"] == 3
+
+
+def test_generate_questions_route_returns_questions(client: TestClient) -> None:
+    response = client.post(
+        "/story/questions",
+        json={"theme": "Cyberpunk Noir"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["theme"] == "Cyberpunk Noir"
+    assert len(body["questions"]) == 4
+    for q in body["questions"]:
+        assert "question" in q
+        assert len(q["options"]) == 4
+
+
+def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:
+    response = client.post(
+        "/story/questions",
+        json={"theme": ""},
+    )
+    assert response.status_code == 422
 

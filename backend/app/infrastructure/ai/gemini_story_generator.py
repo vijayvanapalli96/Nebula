@@ -10,13 +10,24 @@ from pydantic import BaseModel, Field
 from app.application.errors import StoryGenerationError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.core.settings import Settings
-from app.domain.models.story import Scene, SceneChoice, SceneMetadata, StoryState
+from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata, StoryState
 from app.infrastructure.ai.prompts import (
+    INITIAL_QUESTIONS_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     append_style_seed,
     build_action_prompt,
     build_opening_prompt,
+    build_questions_prompt,
 )
+
+
+class _QuestionPayload(BaseModel):
+    question: str
+    options: list[str] = Field(..., min_length=4, max_length=4)
+
+
+class _QuestionsPayload(BaseModel):
+    questions: list[_QuestionPayload] = Field(..., min_length=1, max_length=8)
 
 
 class _SceneMetadataPayload(BaseModel):
@@ -45,6 +56,39 @@ class GeminiStoryGenerator(StoryGeneratorPort):
         self._client: genai.Client | None = None
         if settings.gemini_api_key:
             self._client = genai.Client(api_key=settings.gemini_api_key)
+
+    async def generate_initial_questions(self, theme: str) -> list[InitialQuestion]:
+        if self._client is None:
+            raise StoryGenerationError("GEMINI_API_KEY is not configured.")
+
+        prompt = build_questions_prompt(theme)
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=INITIAL_QUESTIONS_SYSTEM_PROMPT,
+                    temperature=0.9,
+                    top_p=0.95,
+                    max_output_tokens=800,
+                    response_mime_type="application/json",
+                ),
+            )
+        except Exception as exc:
+            raise StoryGenerationError(f"Gemini request failed: {exc}") from exc
+
+        raw_text = _extract_response_text(response)
+        payload = _parse_model_json(raw_text)
+
+        try:
+            questions_payload = _QuestionsPayload.model_validate(payload)
+        except Exception as exc:
+            raise StoryGenerationError(f"Gemini returned invalid questions schema: {exc}") from exc
+
+        return [
+            InitialQuestion(question=q.question, options=list(q.options))
+            for q in questions_payload.questions
+        ]
 
     async def generate_opening_scene(self, state: StoryState) -> Scene:
         prompt = build_opening_prompt(state)

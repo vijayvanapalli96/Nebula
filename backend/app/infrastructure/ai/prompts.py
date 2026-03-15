@@ -2,6 +2,25 @@ from __future__ import annotations
 
 from app.domain.models.story import HistoryEntry, SceneChoice, StoryState
 
+INITIAL_QUESTIONS_SYSTEM_PROMPT = """
+You are an AI creative director designing an interactive story.
+Output must be valid JSON only, with no markdown fences and no extra text.
+Rules:
+- Questions must be abstract and creative.
+- Each question must have exactly 4 answer options.
+- Avoid complicated wording.
+- The answers should influence tone, motivation, or world style.
+Required JSON shape:
+{
+  "questions": [
+    {
+      "question": "string",
+      "options": ["string", "string", "string", "string"]
+    }
+  ]
+}
+"""
+
 SYSTEM_PROMPT = """
 You are a story engine for an interactive cinematic game.
 Output must be valid JSON only, with no markdown fences and no extra text.
@@ -82,4 +101,13 @@ def _history_to_text(history: list[HistoryEntry]) -> str:
         else:
             lines.append(f"Turn {item.turn}: SCENE {item.scene_id or ''} - {item.content}")
     return "\n".join(lines)
+
+
+def build_questions_prompt(theme: str) -> str:
+    return (
+        f"The story theme is: {theme}\n"
+        "Generate 4 simple multiple-choice questions that will shape the story world "
+        "and the main character.\n"
+        "Each question must have exactly 4 options."
+    )
 

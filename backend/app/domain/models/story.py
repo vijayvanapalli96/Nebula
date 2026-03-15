@@ -45,6 +45,12 @@ class HistoryEntry:
 
 
 @dataclass
+class InitialQuestion:
+    question: str
+    options: list[str]
+
+
+@dataclass
 class StoryState:
     session_id: str
     genre: str
