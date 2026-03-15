@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -9,8 +11,11 @@ from app.application.errors import InvalidChoiceError, SessionNotFoundError
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
+from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
 from app.domain.repositories.story_state_repository import StoryStateRepository
+
+logger = logging.getLogger(__name__)
 
 
 class StoryEngineUseCase:
@@ -20,40 +25,61 @@ class StoryEngineUseCase:
         generator: StoryGeneratorPort,
         image_storage: ImageStoragePort | None = None,
         video_generator: VideoGeneratorPort | None = None,
+        media_tracker: MediaTaskTracker | None = None,
     ) -> None:
         self._repository = repository
         self._generator = generator
         self._image_storage = image_storage
         self._video_generator = video_generator
+        self._media_tracker = media_tracker
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
         questions = await self._generator.generate_initial_questions(command.theme.strip())
-
-        if self._image_storage is not None:
-            await self._generate_and_upload_option_images(questions)
-
         return QuestionsResult(theme=command.theme.strip(), questions=questions)
 
-    async def _generate_and_upload_option_images(
-        self, questions: list,
-    ) -> None:
-        """Generate images for all options in parallel and upload to GCS."""
-        import asyncio
-        from uuid import uuid4
+    def fire_questions_media(self, questions: list) -> str | None:  # noqa: ANN001
+        """Register question-option images as a media request and kick off background generation.
 
-        async def _process_option(option) -> None:  # noqa: ANN001
+        Returns ``media_request_id`` (or ``None`` if storage is unavailable).
+        """
+        if self._image_storage is None or self._media_tracker is None:
+            return None
+
+        assets: list[AssetState] = []
+        for qi, q in enumerate(questions):
+            for oi, opt in enumerate(q.options):
+                if opt.image_prompt:
+                    assets.append(AssetState(
+                        asset_key=f"q{qi}_opt{oi}_image",
+                        asset_type="image",
+                        prompt=opt.image_prompt,
+                    ))
+
+        if not assets:
+            return None
+
+        request_id = self._media_tracker.create_request(assets)
+        asyncio.create_task(self._run_questions_media(request_id, questions))
+        return request_id
+
+    async def _run_questions_media(self, request_id: str, questions: list) -> None:  # noqa: ANN001
+        """Background coroutine: generate all question-option images in parallel."""
+
+        async def _process(qi: int, oi: int, prompt: str) -> None:
+            asset_key = f"q{qi}_opt{oi}_image"
             try:
-                image_bytes = await self._generator.generate_option_image(option.image_prompt)
+                image_bytes = await self._generator.generate_option_image(prompt)
                 path = f"question-options/{uuid4()}.png"
-                option.image_uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
-            except Exception:
-                # If image generation fails for an option, leave image_uri as None
-                pass
+                uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+            except Exception as exc:
+                self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
         tasks = [
-            _process_option(opt)
-            for q in questions
-            for opt in q.options
+            _process(qi, oi, opt.image_prompt)
+            for qi, q in enumerate(questions)
+            for oi, opt in enumerate(q.options)
+            if opt.image_prompt
         ]
         await asyncio.gather(*tasks)
     async def generate_opening_scene(self, command: GenerateOpeningSceneCommand) -> OpeningSceneResult:
@@ -64,72 +90,96 @@ class StoryEngineUseCase:
             answers=answers_tuples,
         )
 
-        # Generate all media assets in parallel: scene video + choice images + choice videos
-        if self._image_storage is not None:
-            await self._generate_opening_scene_media(scene)
-
         return OpeningSceneResult(
             theme=command.theme.strip(),
             character_name=command.character_name.strip(),
             scene=scene,
         )
 
-    async def _generate_opening_scene_media(self, scene) -> None:  # noqa: ANN001
-        """Generate and upload all media for an opening scene in parallel."""
-        import asyncio
+    def fire_opening_scene_media(self, scene) -> str | None:  # noqa: ANN001
+        """Register opening-scene media as a request and kick off background generation.
 
-        tasks: list[asyncio.Task] = []
+        Returns ``media_request_id`` (or ``None`` if storage is unavailable).
+        """
+        if self._image_storage is None or self._media_tracker is None:
+            return None
 
-        # 1. Scene-level video
+        assets: list[AssetState] = []
+
+        # Scene-level video
         if scene.video_prompt and self._video_generator is not None:
-            tasks.append(asyncio.create_task(
-                self._generate_and_upload_video(scene, "video_uri", scene.video_prompt, "opening-scene")
+            assets.append(AssetState(
+                asset_key="scene_video",
+                asset_type="video",
+                prompt=scene.video_prompt,
             ))
 
-        # 2. Per-choice images and videos
-        for i, choice in enumerate(scene.choices):
+        # Per-choice assets
+        for choice in scene.choices:
             if choice.image_prompt:
-                tasks.append(asyncio.create_task(
-                    self._generate_and_upload_choice_image(choice)
+                assets.append(AssetState(
+                    asset_key=f"choice_{choice.choice_id}_image",
+                    asset_type="image",
+                    prompt=choice.image_prompt,
                 ))
             if choice.video_prompt and self._video_generator is not None:
-                tasks.append(asyncio.create_task(
-                    self._generate_and_upload_video(choice, "video_uri", choice.video_prompt, f"choice-{choice.choice_id}")
+                assets.append(AssetState(
+                    asset_key=f"choice_{choice.choice_id}_video",
+                    asset_type="video",
+                    prompt=choice.video_prompt,
+                ))
+
+        if not assets:
+            return None
+
+        request_id = self._media_tracker.create_request(assets)
+        asyncio.create_task(self._run_opening_scene_media(request_id, scene))
+        return request_id
+
+    async def _run_opening_scene_media(self, request_id: str, scene) -> None:  # noqa: ANN001
+        """Background coroutine: generate all opening-scene media in parallel."""
+
+        async def _gen_image(asset_key: str, prompt: str, path_prefix: str) -> None:
+            try:
+                image_bytes = await self._generator.generate_option_image(prompt)
+                path = f"{path_prefix}/{uuid4()}.png"
+                uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+            except Exception as exc:
+                self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
+
+        async def _gen_video(asset_key: str, prompt: str, path_prefix: str) -> None:
+            try:
+                req = VideoGenerationRequest(
+                    prompt=prompt,
+                    model="veo-2.0-generate-001",
+                    duration_seconds=5,
+                    aspect_ratio="16:9",
+                )
+                result = await self._video_generator.generate(req)  # type: ignore[union-attr]
+                path = f"{path_prefix}/{uuid4()}.mp4"
+                uri = await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+            except Exception as exc:
+                self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
+
+        tasks: list = []
+
+        if scene.video_prompt and self._video_generator is not None:
+            tasks.append(_gen_video("scene_video", scene.video_prompt, "opening-scene"))
+
+        for choice in scene.choices:
+            if choice.image_prompt:
+                tasks.append(_gen_image(
+                    f"choice_{choice.choice_id}_image", choice.image_prompt, "choice-images",
+                ))
+            if choice.video_prompt and self._video_generator is not None:
+                tasks.append(_gen_video(
+                    f"choice_{choice.choice_id}_video", choice.video_prompt, f"choice-{choice.choice_id}",
                 ))
 
         if tasks:
             await asyncio.gather(*tasks)
-
-    async def _generate_and_upload_choice_image(self, choice) -> None:  # noqa: ANN001
-        """Generate an image for a choice and upload to GCS."""
-        try:
-            image_bytes = await self._generator.generate_option_image(choice.image_prompt)
-            path = f"choice-images/{uuid4()}.png"
-            choice.image_uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
-        except Exception:
-            pass  # Graceful degradation — leave image_uri as None
-
-    async def _generate_and_upload_video(self, target, attr: str, prompt: str, prefix: str) -> None:  # noqa: ANN001
-        """Generate a video and upload to GCS, setting the attr on target."""
-        import logging
-        logger = logging.getLogger(__name__)
-        try:
-            request = VideoGenerationRequest(
-                prompt=prompt,
-                model="veo-2.0-generate-001",
-                duration_seconds=5,
-                aspect_ratio="16:9",
-            )
-            logger.info("Starting video generation for %s ...", prefix)
-            result = await self._video_generator.generate(request)  # type: ignore[union-attr]
-            logger.info("Video generated for %s (%d bytes), uploading...", prefix, result.file_size_bytes)
-            path = f"{prefix}/{uuid4()}.mp4"
-            url = await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
-            setattr(target, attr, url)
-            logger.info("Video uploaded for %s: %s", prefix, url)
-        except Exception as exc:
-            logger.warning("Video generation failed for %s: %s", prefix, exc)
-            pass  # Graceful degradation — leave video_uri as None
 
     async def start_story(self, command: StartStoryCommand) -> StoryStartResult:
         state = StoryState(
