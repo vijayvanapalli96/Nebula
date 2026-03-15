@@ -62,6 +62,10 @@ class OpeningChoice:
     choice_id: str
     choice_text: str
     direction_hint: str
+    image_prompt: str = ""
+    image_uri: str | None = None
+    video_prompt: str = ""
+    video_uri: str | None = None
 
 
 @dataclass
@@ -69,6 +73,8 @@ class OpeningScene:
     scene_title: str
     scene_description: str
     choices: list[OpeningChoice]
+    video_prompt: str = ""
+    video_uri: str | None = None
 
 
 @dataclass
