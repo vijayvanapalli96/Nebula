@@ -6,7 +6,7 @@ from app.application.errors import InvalidChoiceError, SessionNotFoundError, Sto
 from app.application.services.media_task_tracker import MediaTaskTracker, get_media_tracker
 from app.application.use_cases.story_engine import StoryEngineUseCase
 from app.core.settings import get_settings
-from app.presentation.api.dependencies import get_use_case
+from app.presentation.api.dependencies import get_use_case, require_auth
 from app.presentation.api.schemas import (
     GenerateQuestionsRequest,
     GenerateQuestionsResponse,
@@ -41,6 +41,7 @@ async def health() -> dict[str, str]:
     "/story/questions",
     response_model=GenerateQuestionsResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_auth)],
 )
 async def generate_questions(
     request: GenerateQuestionsRequest,
@@ -61,6 +62,7 @@ async def generate_questions(
     "/story/opening",
     response_model=OpeningSceneResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_auth)],
 )
 async def generate_opening_scene(
     request: OpeningSceneRequest,
@@ -102,6 +104,7 @@ async def get_media(
     "/story/start",
     response_model=StoryStartResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_auth)],
 )
 async def start_story(
     request: StoryStartRequest,
@@ -117,7 +120,7 @@ async def start_story(
         ) from exc
 
 
-@router.post("/story/action", response_model=StoryActionResponse)
+@router.post("/story/action", response_model=StoryActionResponse, dependencies=[Depends(require_auth)])
 async def story_action(
     request: StoryActionRequest,
     use_case: StoryEngineUseCase = Depends(get_use_case),
@@ -136,7 +139,7 @@ async def story_action(
         ) from exc
 
 
-@router.get("/stories/me", response_model=list[StoryCardResponse])
+@router.get("/stories/me", response_model=list[StoryCardResponse], dependencies=[Depends(require_auth)])
 async def list_my_stories(
     use_case: StoryEngineUseCase = Depends(get_use_case),
 ) -> list[StoryCardResponse]:

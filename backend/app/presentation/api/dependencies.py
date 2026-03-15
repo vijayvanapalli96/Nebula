@@ -1,6 +1,9 @@
 from functools import lru_cache
 
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException, status
+from firebase_admin import auth as admin_auth
+
+from app.infrastructure.firebase.admin import ensure_initialized
 
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.interleaved_generator import InterleavedGeneratorPort
@@ -143,3 +146,48 @@ def get_video_use_case(
     generator: VideoGeneratorPort = Depends(get_video_generator),
 ) -> VideoGenerationUseCase:
     return VideoGenerationUseCase(repository=repository, generator=generator)
+
+
+# ── Shared Firebase auth guard ────────────────────────────────────────────────
+
+
+async def require_auth(authorization: str = Header(default="")) -> str:
+    """
+    FastAPI dependency — verifies the Firebase ID-token in the
+    ``Authorization: Bearer <token>`` header.
+
+    Returns the caller's UID on success.
+    Raises HTTP 401 on a missing or invalid token.
+    Add to any route or ``APIRouter`` that must be authenticated:
+
+        @router.get("/example", dependencies=[Depends(require_auth)])
+        # or at router level:
+        APIRouter(dependencies=[Depends(require_auth)])
+    """
+    # Ensure Firebase Admin app is initialised before calling verify_id_token.
+    # Wrapped in try/except so any credential/init failure returns a clean 503
+    # rather than an unhandled exception (which Cloud Run logs as 502).
+    try:
+        ensure_initialized()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Auth service unavailable: {exc}",
+        ) from exc
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or malformed Authorization header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    id_token = authorization[7:]
+    try:
+        decoded = admin_auth.verify_id_token(id_token)
+        return decoded["uid"]
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Firebase ID token: {exc}",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc

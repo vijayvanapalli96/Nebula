@@ -35,9 +35,9 @@ from app.presentation.api.creative_schemas import (
     to_regenerate_part_command,
     to_usage_snapshot_response,
 )
-from app.presentation.api.dependencies import get_creative_use_case
+from app.presentation.api.dependencies import get_creative_use_case, require_auth
 
-creative_router = APIRouter(prefix="/v1", tags=["creative"])
+creative_router = APIRouter(prefix="/v1", tags=["creative"], dependencies=[Depends(require_auth)])
 
 
 @creative_router.post(
