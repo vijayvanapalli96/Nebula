@@ -45,9 +45,16 @@ class HistoryEntry:
 
 
 @dataclass
+class QuestionOption:
+    text: str
+    image_prompt: str
+    image_uri: str | None = None
+
+
+@dataclass
 class InitialQuestion:
     question: str
-    options: list[str]
+    options: list[QuestionOption]
 
 
 @dataclass

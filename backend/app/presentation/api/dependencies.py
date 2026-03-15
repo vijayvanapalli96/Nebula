@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from fastapi import Depends
 
+from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.interleaved_generator import InterleavedGeneratorPort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGeneratorPort
@@ -49,11 +50,26 @@ def get_ai_generator() -> StoryGeneratorPort:
     return _get_ai_generator_singleton()
 
 
+@lru_cache
+def _get_image_storage_singleton() -> ImageStoragePort | None:
+    settings = get_settings()
+    if not settings.gcs_bucket_name:
+        return None
+    from app.infrastructure.storage.gcs_image_storage import GcsImageStorage
+
+    return GcsImageStorage(settings=settings)
+
+
+def get_image_storage() -> ImageStoragePort | None:
+    return _get_image_storage_singleton()
+
+
 def get_use_case(
     repository: StoryStateRepository = Depends(get_repository),
     generator: StoryGeneratorPort = Depends(get_ai_generator),
+    image_storage: ImageStoragePort | None = Depends(get_image_storage),
 ) -> StoryEngineUseCase:
-    return StoryEngineUseCase(repository=repository, generator=generator)
+    return StoryEngineUseCase(repository=repository, generator=generator, image_storage=image_storage)
 
 
 def get_project_repository() -> ProjectRepository:

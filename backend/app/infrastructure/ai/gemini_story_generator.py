@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.application.errors import StoryGenerationError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.core.settings import Settings
-from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata, StoryState
+from app.domain.models.story import InitialQuestion, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryState
 from app.infrastructure.ai.prompts import (
     INITIAL_QUESTIONS_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
@@ -21,9 +21,14 @@ from app.infrastructure.ai.prompts import (
 )
 
 
+class _QuestionOptionPayload(BaseModel):
+    text: str
+    image_prompt: str
+
+
 class _QuestionPayload(BaseModel):
     question: str
-    options: list[str] = Field(..., min_length=4, max_length=4)
+    options: list[_QuestionOptionPayload] = Field(..., min_length=4, max_length=4)
 
 
 class _QuestionsPayload(BaseModel):
@@ -86,9 +91,46 @@ class GeminiStoryGenerator(StoryGeneratorPort):
             raise StoryGenerationError(f"Gemini returned invalid questions schema: {exc}") from exc
 
         return [
-            InitialQuestion(question=q.question, options=list(q.options))
+            InitialQuestion(
+                question=q.question,
+                options=[
+                    QuestionOption(text=opt.text, image_prompt=opt.image_prompt)
+                    for opt in q.options
+                ],
+            )
             for q in questions_payload.questions
         ]
+
+    async def generate_option_image(self, prompt: str) -> bytes:
+        """Generate an image using Imagen and return PNG bytes."""
+        if self._client is None:
+            raise StoryGenerationError("GEMINI_API_KEY is not configured.")
+
+        import asyncio
+        from functools import partial
+
+        try:
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    self._client.models.generate_images,
+                    model=self._settings.imagen_model,
+                    prompt=prompt,
+                    config=types.GenerateImagesConfig(number_of_images=1),
+                ),
+            )
+        except Exception as exc:
+            raise StoryGenerationError(f"Imagen request failed: {exc}") from exc
+
+        if not response.generated_images:
+            raise StoryGenerationError("Imagen returned no images.")
+
+        image = response.generated_images[0].image
+        if image is None or not image.image_bytes:
+            raise StoryGenerationError("Imagen returned empty image data.")
+
+        return image.image_bytes
 
     async def generate_opening_scene(self, state: StoryState) -> Scene:
         prompt = build_opening_prompt(state)

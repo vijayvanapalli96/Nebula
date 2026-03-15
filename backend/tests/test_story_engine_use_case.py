@@ -7,7 +7,7 @@ import pytest
 from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -34,21 +34,44 @@ class FakeGenerator:
         return [
             InitialQuestion(
                 question="What color is the sky in your world?",
-                options=["Crimson", "Silver", "Emerald", "Obsidian"],
+                options=[
+                    QuestionOption(text="Crimson", image_prompt="A blood-red sky over a desolate landscape"),
+                    QuestionOption(text="Silver", image_prompt="A shimmering silver sky with metallic clouds"),
+                    QuestionOption(text="Emerald", image_prompt="A lush green sky above a mystical forest"),
+                    QuestionOption(text="Obsidian", image_prompt="A pitch-black sky with faint glowing stars"),
+                ],
             ),
             InitialQuestion(
                 question="What drives the hero?",
-                options=["Revenge", "Curiosity", "Love", "Duty"],
+                options=[
+                    QuestionOption(text="Revenge", image_prompt="A clenched fist surrounded by flames"),
+                    QuestionOption(text="Curiosity", image_prompt="An open ancient book glowing with light"),
+                    QuestionOption(text="Love", image_prompt="Two silhouettes reaching for each other"),
+                    QuestionOption(text="Duty", image_prompt="A knight kneeling before a throne"),
+                ],
             ),
             InitialQuestion(
                 question="What lurks in the shadows?",
-                options=["Ghosts", "Machines", "Beasts", "Nothing"],
+                options=[
+                    QuestionOption(text="Ghosts", image_prompt="Translucent spirits floating in darkness"),
+                    QuestionOption(text="Machines", image_prompt="Mechanical eyes glowing in shadowy corridors"),
+                    QuestionOption(text="Beasts", image_prompt="Glowing predatory eyes in a dark forest"),
+                    QuestionOption(text="Nothing", image_prompt="Empty dark void stretching infinitely"),
+                ],
             ),
             InitialQuestion(
                 question="How does the story end?",
-                options=["In flames", "With a whisper", "With a dance", "With silence"],
+                options=[
+                    QuestionOption(text="In flames", image_prompt="A city engulfed in towering flames"),
+                    QuestionOption(text="With a whisper", image_prompt="A lone figure fading into mist"),
+                    QuestionOption(text="With a dance", image_prompt="Silhouettes dancing under moonlight"),
+                    QuestionOption(text="With silence", image_prompt="An empty room with dust motes floating"),
+                ],
             ),
         ]
+
+    async def generate_option_image(self, prompt):  # noqa: ANN001
+        return b"fake-png-bytes"
 
     async def generate_opening_scene(self, state):  # noqa: ANN001
         return _scene(scene_id="scene-1", chapter=1)
@@ -149,3 +172,6 @@ def test_generate_questions_returns_four_questions() -> None:
     for q in result.questions:
         assert q.question
         assert len(q.options) == 4
+        for opt in q.options:
+            assert opt.text
+            assert opt.image_prompt
