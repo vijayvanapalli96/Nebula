@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.dto.story_results import QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.application.errors import SessionNotFoundError
-from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
 from app.presentation.api.dependencies import get_use_case
 
@@ -52,6 +52,21 @@ class FakeUseCase:
                     options=["In flames", "With a whisper", "With a dance", "Silently"],
                 ),
             ],
+        )
+
+    async def generate_opening_scene(self, command):  # noqa: ANN001
+        return OpeningSceneResult(
+            theme=command.theme,
+            character_name=command.character_name,
+            scene=OpeningScene(
+                scene_title="Crimson Echoes",
+                scene_description="The neon-soaked city pulses with hidden danger.",
+                choices=[
+                    OpeningChoice(choice_id="A", choice_text="Enter the alley", direction_hint="Danger awaits"),
+                    OpeningChoice(choice_id="B", choice_text="Climb the tower", direction_hint="A broader view"),
+                    OpeningChoice(choice_id="C", choice_text="Follow the stranger", direction_hint="Mystery deepens"),
+                ],
+            ),
         )
 
     async def start_story(self, command):  # noqa: ANN001
@@ -145,6 +160,40 @@ def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> Non
     response = client.post(
         "/story/questions",
         json={"theme": ""},
+    )
+    assert response.status_code == 422
+
+
+def test_opening_scene_route_returns_scene(client: TestClient) -> None:
+    response = client.post(
+        "/story/opening",
+        json={
+            "theme": "Cyberpunk Noir",
+            "character_name": "Kira Voss",
+            "answers": [
+                {"question": "What color is the sky?", "answer": "Crimson"},
+                {"question": "What drives the hero?", "answer": "Revenge"},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["theme"] == "Cyberpunk Noir"
+    assert body["character_name"] == "Kira Voss"
+    assert body["scene_title"] == "Crimson Echoes"
+    assert len(body["choices"]) == 3
+    assert body["choices"][0]["choice_id"] == "A"
+
+
+def test_opening_scene_route_rejects_missing_answers(client: TestClient) -> None:
+    response = client.post(
+        "/story/opening",
+        json={
+            "theme": "Cyberpunk Noir",
+            "character_name": "Kira Voss",
+            "answers": [],
+        },
     )
     assert response.status_code == 422
 
