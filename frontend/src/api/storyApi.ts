@@ -4,6 +4,7 @@ import type { Scene } from '../store/storySessionStore';
 
 export interface StoryQuestionsResponse {
   questions: Question[];
+  mediaRequestId: string | null;
 }
 
 // Curated cinematic Unsplash images, cycled by option position (0-3)
@@ -13,6 +14,19 @@ const OPTION_IMAGES = [
   'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=600&q=80', // thought / cosmos
   'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=600&q=80', // hopeful / sunrise
 ];
+
+/**
+ * Converts a GCS URI (gs://bucket/object) to a public HTTPS URL.
+ * Returns the input unchanged if it is already an HTTP/HTTPS URL or empty.
+ */
+function gsToHttps(uri: string): string {
+  if (!uri) return uri;
+  if (uri.startsWith('gs://')) {
+    // gs://bucket-name/path/to/file  →  https://storage.googleapis.com/bucket-name/path/to/file
+    return uri.replace(/^gs:\/\//, 'https://storage.googleapis.com/');
+  }
+  return uri;
+}
 
 const BASE_URL = 'https://nebula-backend-979585801507.us-central1.run.app';
 
@@ -44,17 +58,20 @@ export async function fetchStoryQuestions(theme: string): Promise<StoryQuestions
 
   const data = await res.json() as {
     theme: string;
-    questions: Array<{ question: string; options: string[] }>;
+    questions: Array<{ question: string; options: Array<{ text: string; image_uri: string }> }>;
   };
 
   // API returns flat string options — map to { label, image }
   return {
+    mediaRequestId: (data as { media_request_id?: string | null }).media_request_id ?? null,
     questions: data.questions.map((q, i) => ({
       id: `q_${i}`,
       question: q.question,
-      options: q.options.map((label, oi): QuestionOption => ({
-        label,
-        image: OPTION_IMAGES[oi % OPTION_IMAGES.length],
+      options: q.options.map((opt, oi): QuestionOption => ({
+        label: opt.text,
+        image: opt.image_uri
+          ? gsToHttps(opt.image_uri)
+          : OPTION_IMAGES[oi % OPTION_IMAGES.length],
       })),
     })),
   };
@@ -79,4 +96,22 @@ export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<S
   }
 
   return res.json() as Promise<Scene>;
+}
+
+/** Map of asset_key → HTTPS URL (null = still generating, key absent = failed/missing). */
+export type MediaAssets = Record<string, string | null>;
+
+/** GET /story/media/{id} — returns current state of all generated image assets. */
+export async function fetchMediaAssets(mediaRequestId: string): Promise<MediaAssets> {
+  const res = await fetch(`${BASE_URL}/story/media/${mediaRequestId}`, {
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`Media poll failed: ${res.status}`);
+  const data = await res.json() as { assets: Record<string, string | null> };
+  // Convert any gs:// URIs to public HTTPS
+  const converted: MediaAssets = {};
+  for (const [key, uri] of Object.entries(data.assets)) {
+    converted[key] = uri ? gsToHttps(uri) : null;
+  }
+  return converted;
 }

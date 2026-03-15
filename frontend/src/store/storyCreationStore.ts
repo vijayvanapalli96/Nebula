@@ -27,6 +27,7 @@ interface StoryCreationState {
   setCustomInput: (value: string) => void;
   setLoading: (loading: boolean) => void;
   setSelectedGenre: (genre: Genre | null) => void;
+  updateOptionImage: (questionIndex: number, optionIndex: number, imageUrl: string) => void;
   nextQuestion: () => void;
   previousQuestion: () => void;
   goToQuestion: (index: number) => void;
@@ -47,6 +48,19 @@ export const useStoryCreationStore = create<StoryCreationState>((set, get) => ({
   setCustomInput: (customInput) => set({ customInput }),
   setLoading: (loading) => set({ loading }),
   setSelectedGenre: (selectedGenre) => set({ selectedGenre }),
+  updateOptionImage: (questionIndex, optionIndex, imageUrl) =>
+    set((state) => {
+      const questions = state.questions.map((q, qi) => {
+        if (qi !== questionIndex) return q;
+        return {
+          ...q,
+          options: q.options.map((opt, oi) =>
+            oi === optionIndex ? { ...opt, image: imageUrl } : opt,
+          ),
+        };
+      });
+      return { questions };
+    }),
   nextQuestion: () => {
     const { currentQuestionIndex, questions } = get();
     // Allow advancing to custom-input screen (index === questions.length)

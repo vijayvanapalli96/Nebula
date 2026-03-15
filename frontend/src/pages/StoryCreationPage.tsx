@@ -5,7 +5,7 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 
 import { useStoryCreationStore } from '../store/storyCreationStore';
 import { useThemeStore } from '../store/themeStore';
-import { fetchStoryQuestions } from '../api/storyApi';
+import { fetchStoryQuestions, fetchMediaAssets } from '../api/storyApi';
 import type { StoryOpeningRequest } from '../api/storyApi';
 import StoryLoadingScreen from '../features/storyCreation/StoryLoadingScreen';
 import QuestionStep from '../features/storyCreation/QuestionStep';
@@ -33,6 +33,7 @@ const StoryCreationPage: React.FC = () => {
     setAnswer,
     setCustomInput,
     setLoading,
+    updateOptionImage,
     nextQuestion,
     previousQuestion,
     reset,
@@ -41,14 +42,53 @@ const StoryCreationPage: React.FC = () => {
   // Track slide direction for AnimatePresence
   const directionRef = useRef<Direction>(1);
 
-  // Fetch questions on mount
+  // Fetch questions on mount, then poll for images until all are ready
   useEffect(() => {
     const theme = genre?.title ?? selectedGenre?.title ?? '';
     reset();
     setLoading(true);
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
     fetchStoryQuestions(theme)
-      .then(({ questions }) => setQuestions(questions))
+      .then(({ questions, mediaRequestId }) => {
+        setQuestions(questions);
+
+        if (!mediaRequestId) return;
+
+        // Track which assets have been resolved so we can stop early
+        const resolved = new Set<string>();
+        // Total expected: q{i}_opt{j}_image for each question × 4 options
+        const total = questions.length * 4;
+
+        pollInterval = setInterval(async () => {
+          try {
+            const assets = await fetchMediaAssets(mediaRequestId);
+            for (const [key, url] of Object.entries(assets)) {
+              if (url && !resolved.has(key)) {
+                resolved.add(key);
+                // key format: q{qi}_opt{oi}_image
+                const match = key.match(/^q(\d+)_opt(\d+)_image$/);
+                if (match) {
+                  updateOptionImage(Number(match[1]), Number(match[2]), url);
+                }
+              }
+            }
+            // Stop polling once everything is resolved
+            if (resolved.size >= total && pollInterval) {
+              clearInterval(pollInterval);
+              pollInterval = null;
+            }
+          } catch {
+            // Non-fatal — just keep polling
+          }
+        }, 2500);
+      })
       .finally(() => setLoading(false));
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
