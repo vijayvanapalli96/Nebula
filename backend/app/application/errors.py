@@ -24,3 +24,11 @@ class PartNotFoundError(ValueError):
 
 class AssetNotFoundError(ValueError):
     pass
+
+
+class VideoJobNotFoundError(ValueError):
+    pass
+
+
+class VideoGenerationError(RuntimeError):
+    pass
