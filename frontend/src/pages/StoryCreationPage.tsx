@@ -6,6 +6,7 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 import { useStoryCreationStore } from '../store/storyCreationStore';
 import { useThemeStore } from '../store/themeStore';
 import { fetchStoryQuestions } from '../api/storyApi';
+import type { StoryOpeningRequest } from '../api/storyApi';
 import StoryLoadingScreen from '../features/storyCreation/StoryLoadingScreen';
 import QuestionStep from '../features/storyCreation/QuestionStep';
 import ProgressBar from '../features/storyCreation/ProgressBar';
@@ -83,8 +84,17 @@ const StoryCreationPage: React.FC = () => {
   }, [currentQuestionIndex, navigate, previousQuestion]);
 
   const handleBegin = () => {
-    // Placeholder — story session start wired in next phase
-    navigate('/dashboard');
+    const theme = selectedGenre?.title ?? genre?.title ?? 'Adventure';
+    const character_name = customInput.trim() || 'The Protagonist';
+    const payload: StoryOpeningRequest = {
+      theme,
+      character_name,
+      answers: questions.map((q) => ({
+        question: q.question,
+        answer: answers[q.id] ?? '',
+      })),
+    };
+    navigate('/story/generating', { state: { payload } });
   };
 
   const headerBg = isDark ? 'rgba(10,10,15,0.88)' : 'rgba(244,243,250,0.92)';
