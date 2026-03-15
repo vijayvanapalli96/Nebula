@@ -14,6 +14,8 @@ const StoryGraphPage      = lazy(() => import("./pages/StoryGraphPage"));
 const StoryPage           = lazy(() => import("./pages/StoryPage"));
 const ComingSoonPage      = lazy(() => import("./pages/ComingSoonPage"));
 const SettingsPage        = lazy(() => import("./pages/SettingsPage"));
+const ThemeLoadingPage    = lazy(() => import("./pages/ThemeLoadingPage"));
+const ExploreThemesPage   = lazy(() => import("./pages/ExploreThemesPage"));
 
 const Spinner: React.FC = () => (
   <div
@@ -31,7 +33,7 @@ const Spinner: React.FC = () => (
 const GuestRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuthStore();
   if (loading) return <Spinner />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/loading" replace />;
   return <>{children}</>;
 };
 
@@ -46,11 +48,15 @@ const App: React.FC = () => (
         <Route path="/login"  element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
 
+        {/* -- Theme loading (post-auth) -- */}
+        <Route path="/loading" element={<ProtectedRoute><ThemeLoadingPage /></ProtectedRoute>} />
+
+        {/* -- Explore all worlds -- */}
+        <Route path="/explore" element={<ProtectedRoute><ExploreThemesPage /></ProtectedRoute>} />
+
         {/* -- Protected: Dashboard -- */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/stories"      element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
-        <Route path="/dashboard/explore"      element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
-        <Route path="/dashboard/favorites"    element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
         <Route path="/dashboard/achievements" element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
         <Route path="/dashboard/settings"     element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 

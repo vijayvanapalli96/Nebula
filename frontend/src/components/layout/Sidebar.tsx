@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   BookOpen,
   Compass,
-  Heart,
   Trophy,
   Settings,
   Sun,
@@ -31,8 +30,7 @@ interface NavItem {
 const MAIN_NAV: NavItem[] = [
   { id: 'dashboard',    label: 'Dashboard',    icon: LayoutDashboard, href: '/dashboard',              end: true },
   { id: 'stories',      label: 'My Stories',   icon: BookOpen,        href: '/dashboard/stories'                },
-  { id: 'explore',      label: 'Explore',      icon: Compass,         href: '/dashboard/explore'                },
-  { id: 'favorites',    label: 'Favorites',    icon: Heart,           href: '/dashboard/favorites'              },
+  { id: 'explore',      label: 'Explore',      icon: Compass,         href: '/explore'                          },
   { id: 'achievements', label: 'Achievements', icon: Trophy,          href: '/dashboard/achievements'           },
 ];
 
