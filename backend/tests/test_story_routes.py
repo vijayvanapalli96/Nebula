@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
 from app.application.errors import SessionNotFoundError
 from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
@@ -136,6 +136,18 @@ class FakeUseCase:
             )
         ]
 
+    def list_story_themes(self) -> list[StoryThemeView]:
+        return [
+            StoryThemeView(
+                id="genre-noir",
+                title="Noir Detective",
+                tagline="Solve a crime in a rain-soaked city.",
+                description="Secrets hide in every shadow.",
+                image="https://example.com/noir.jpg",
+                accent_color="rgba(234,179,8,0.6)",
+            )
+        ]
+
 
 @pytest.fixture
 def client() -> TestClient:
@@ -184,6 +196,15 @@ def test_list_stories_route_returns_cards(client: TestClient) -> None:
     assert len(body) == 1
     assert body[0]["session_id"] == "session-1"
     assert body[0]["choices_available"] == 3
+
+
+def test_list_story_themes_route_returns_themes(client: TestClient) -> None:
+    response = client.get("/story/themes")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["id"] == "genre-noir"
+    assert body[0]["title"] == "Noir Detective"
 
 
 def test_generate_questions_route_returns_questions(client: TestClient) -> None:
@@ -246,4 +267,3 @@ def test_opening_scene_route_rejects_missing_answers(client: TestClient) -> None
         },
     )
     assert response.status_code == 422
-

@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     imagen_model: str = "imagen-4.0-generate-001"
     gcs_bucket_name: str = Field(default="", alias="GCS_BUCKET_NAME")
+    firebase_project_id: str = Field(default="", alias="FIREBASE_PROJECT_ID")
+    firebase_themes_collection: str = Field(default="story_themes", alias="FIREBASE_THEMES_COLLECTION")
     scene_word_limit: int = 120
 
     model_config = SettingsConfigDict(

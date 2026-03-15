@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
 from app.domain.models.story import HistoryEntry, Scene, StoryState
 
 
@@ -87,6 +87,15 @@ class StoryCardResponse(BaseModel):
     choices_available: int = 0
 
 
+class StoryThemeResponse(BaseModel):
+    id: str
+    title: str
+    tagline: str
+    description: str
+    image: str
+    accent_color: str
+
+
 class GenerateQuestionsRequest(BaseModel):
     theme: str = Field(..., min_length=1, description="Story theme to generate questions for.")
 
@@ -165,6 +174,17 @@ def to_story_card_response(view: StoryCardView) -> StoryCardResponse:
         last_scene_id=view.last_scene_id,
         updated_at=view.updated_at,
         choices_available=view.choices_available,
+    )
+
+
+def to_story_theme_response(view: StoryThemeView) -> StoryThemeResponse:
+    return StoryThemeResponse(
+        id=view.id,
+        title=view.title,
+        tagline=view.tagline,
+        description=view.description,
+        image=view.image,
+        accent_color=view.accent_color,
     )
 
 
@@ -260,4 +280,3 @@ def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
             for q in result.questions
         ],
     )
-
