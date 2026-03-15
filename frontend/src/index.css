@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@layer base {
+  /* -- Theme tokens: Dark (default) -- */
+  :root {
+    color-scheme: dark;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    --bg-base:         #0a0a0f;
+    --bg-surface:      #111117;
+    --bg-card:         #16161f;
+    --bg-elevated:     #1c1c28;
+    --text-primary:    #f0f0f5;
+    --text-secondary:  #9ca3af;
+    --text-muted:      #4b5563;
+    --border-color:    rgba(255, 255, 255, 0.08);
+    --sidebar-bg:      #0d0d15;
+    --sidebar-hover:   rgba(255, 255, 255, 0.05);
+    --sidebar-active:  rgba(139, 92, 246, 0.15);
+    --input-bg:        rgba(255, 255, 255, 0.05);
+  }
+
+  /* -- Theme tokens: Light -- */
+  :root.light {
+    color-scheme: light;
+    --bg-base:         #f4f3fa;
+    --bg-surface:      #ffffff;
+    --bg-card:         #f9f8ff;
+    --bg-elevated:     #ede9fe;
+    --text-primary:    #0f0f1a;
+    --text-secondary:  #4b5563;
+    --text-muted:      #9ca3af;
+    --border-color:    rgba(0, 0, 0, 0.08);
+    --sidebar-bg:      #ffffff;
+    --sidebar-hover:   rgba(0, 0, 0, 0.04);
+    --sidebar-active:  rgba(139, 92, 246, 0.1);
+    --input-bg:        rgba(0, 0, 0, 0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; background-color: var(--bg-base); }
+  body { -webkit-tap-highlight-color: transparent; }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+@layer components {
+  .sidebar-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.75rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+    position: relative;
+    text-decoration: none;
+    color: var(--text-secondary);
+    width: 100%;
+  }
+  .sidebar-nav-item:hover {
+    background-color: var(--sidebar-hover);
+    color: var(--text-primary);
+  }
+  .sidebar-nav-item.active {
+    background-color: var(--sidebar-active);
+    color: #8b5cf6;
+  }
+}
+
+@layer utilities {
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(139,92,246,0.6), 0 0 40px rgba(139,92,246,0.3), 0 0 80px rgba(139,92,246,0.1);
+  }
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59,130,246,0.6), 0 0 40px rgba(59,130,246,0.3);
+  }
+  .text-glow {
+    text-shadow: 0 0 20px rgba(139,92,246,0.8);
+  }
+  .card-shadow {
+    box-shadow: var(--shadow-card);
+  }
+}
