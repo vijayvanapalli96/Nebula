@@ -7,8 +7,7 @@ Players start a story with character details, choose actions at each scene, and 
 ## What This Application Does
 
 - Starts personalized story sessions with genre, archetype, and motivation.
-- Generates scene-by-scene narrative progression using Gemini 2.5 Flash.
-- Supports multimodal creative composition APIs with interleaved output parts.
+- Generates scene-by-scene narrative progression using Gemini 2.0 Flash.
 - Returns scene data in a strict JSON shape for frontend rendering:
   - scene metadata
   - narrative text
@@ -37,23 +36,17 @@ backend/
       repositories/story_state_repository.py
     application/
       dto/                               # Commands + result views
-      ports/story_generator.py           # Story AI generator abstraction
-      ports/interleaved_generator.py     # Multimodal generator abstraction
+      ports/story_generator.py           # AI generator abstraction
       use_cases/story_engine.py          # Story orchestration use case
-      use_cases/creative_storytelling.py # Multimodal composition use case
       errors.py
     infrastructure/
       ai/gemini_story_generator.py       # google-genai adapter
-      ai/gemini_interleaved_generator.py # Interleaved multimodal adapter
       ai/prompts.py                      # Prompt + style seed policies
       repositories/in_memory_story_repository.py
-      repositories/in_memory_creative_repository.py
     presentation/
       api/router.py                      # FastAPI routes
-      api/creative_router.py             # /v1 multimodal routes
       api/dependencies.py                # DI composition root
       api/schemas.py                     # Pydantic HTTP contracts
-      api/creative_schemas.py            # Pydantic multimodal contracts
     main.py                              # FastAPI app factory
   main.py                                # ASGI/uvicorn entrypoint
   requirements.txt
@@ -183,42 +176,6 @@ Returns active in-memory story cards for the landing page.
 ### `GET /health`
 
 Basic health endpoint.
-
-### `POST /v1/projects`
-
-Creates a reusable creative project (title, use case, tone, style bible).
-
-### `POST /v1/compositions`
-
-Generates an interleaved multimodal composition (text/image/audio/video parts).
-
-### `GET /v1/compositions/{composition_id}`
-
-Returns the current composition snapshot with ordered parts and usage.
-
-### `GET /v1/compositions/{composition_id}/stream`
-
-Streams composition events as `text/event-stream` (SSE).
-
-### `PATCH /v1/compositions/{composition_id}/parts/{part_id}`
-
-Regenerates a single composition part without rebuilding the full composition.
-
-### `POST /v1/assets:upload-url`
-
-Returns a temporary upload URL and storage URI for client-side asset upload.
-
-### `GET /v1/assets/{asset_id}`
-
-Fetches stored asset metadata.
-
-### `POST /v1/compositions/{composition_id}:export`
-
-Creates an export artifact descriptor (download URL + expiry).
-
-### `GET /v1/usage`
-
-Returns aggregate generation usage counters.
 
 ## Implementation Notes
 
