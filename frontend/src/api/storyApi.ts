@@ -8,37 +8,31 @@ export interface StoryQuestionsResponse {
   questions: Question[];
 }
 
-/** Simulates a network call — swap the body for a real fetch() later. */
-export async function fetchStoryQuestions(): Promise<StoryQuestionsResponse> {
-  await new Promise((resolve) => setTimeout(resolve, 3200));
+const BASE_URL = 'https://nebula-backend-979585801507.us-central1.run.app';
 
+/** POST /story/questions — fetches AI-generated questions for the given theme/genre. */
+export async function fetchStoryQuestions(theme: string): Promise<StoryQuestionsResponse> {
+  const res = await fetch(`${BASE_URL}/story/questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch questions: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json() as {
+    theme: string;
+    questions: Array<{ question: string; options: string[] }>;
+  };
+
+  // API response has no `id` — generate stable ids from index
   return {
-    questions: [
-      {
-        id: 'tone',
-        question: 'What kind of atmosphere should your story have?',
-        options: [
-          'Dark and mysterious',
-          'Adventurous and exciting',
-          'Thought-provoking',
-          'Hopeful but tense',
-        ],
-      },
-      {
-        id: 'motivation',
-        question: 'What drives your main character?',
-        options: ['Curiosity', 'Revenge', 'Protecting someone', 'Survival'],
-      },
-      {
-        id: 'world',
-        question: 'What kind of world does this story take place in?',
-        options: [
-          'A futuristic civilization',
-          'A mysterious modern city',
-          'A distant alien planet',
-          'A magical hidden world',
-        ],
-      },
-    ],
+    questions: data.questions.map((q, i) => ({
+      id: `q_${i}`,
+      question: q.question,
+      options: q.options,
+    })),
   };
 }

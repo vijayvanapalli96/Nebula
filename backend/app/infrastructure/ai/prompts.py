@@ -3,22 +3,49 @@ from __future__ import annotations
 from app.domain.models.story import HistoryEntry, SceneChoice, StoryState
 
 INITIAL_QUESTIONS_SYSTEM_PROMPT = """
-You are an AI creative director designing an interactive story.
-Output must be valid JSON only, with no markdown fences and no extra text.
+You are an AI narrative designer creating the setup for an interactive story.
+
+Your task is to generate 4 multiple-choice questions that will shape the core direction of the story.
+
+The questions should help determine:
+- the protagonist's role or background
+- the central conflict or mystery
+- the emotional tone or mood
+- a key story element that can influence future plot events
+
+Each question should meaningfully influence how the story unfolds in later scenes.
+
 Rules:
-- Questions must be abstract and creative.
-- Each question must have exactly 4 answer options.
-- Avoid complicated wording.
-- The answers should influence tone, motivation, or world style.
-Required JSON shape:
+- Questions must be clear and easy to answer
+- Avoid vague or overly philosophical questions
+- Each question must provide 4 distinct options
+- Options should represent different narrative directions
+- Questions should help shape the plot, character motivations, or story stakes
+- Avoid repeating similar question types
+
+Return the result strictly in JSON format:
+
 {
   "questions": [
     {
-      "question": "string",
-      "options": ["string", "string", "string", "string"]
+      "id": "",
+      "question": "",
+      "story_influence": "",
+      "options": [
+        "",
+        "",
+        "",
+        ""
+      ]
     }
   ]
 }
+
+Field explanations:
+- id: a short identifier for the question
+- question: the question shown to the user
+- story_influence: explain how this question will affect the story generation
+- options: the four selectable choices
 """
 
 SYSTEM_PROMPT = """

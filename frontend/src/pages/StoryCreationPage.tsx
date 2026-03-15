@@ -22,6 +22,7 @@ const StoryCreationPage: React.FC = () => {
     answers,
     customInput,
     loading,
+    selectedGenre,
     setQuestions,
     setAnswer,
     setCustomInput,
@@ -31,9 +32,10 @@ const StoryCreationPage: React.FC = () => {
 
   // Fetch questions once on mount
   useEffect(() => {
+    const theme = genre?.title ?? selectedGenre?.title ?? '';
     reset();
     setLoading(true);
-    fetchStoryQuestions()
+    fetchStoryQuestions(theme)
       .then(({ questions }) => setQuestions(questions))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
