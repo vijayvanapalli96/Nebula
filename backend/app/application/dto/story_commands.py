@@ -12,6 +12,11 @@ class StartStoryCommand:
 
 
 @dataclass(frozen=True)
+class GenerateQuestionsCommand:
+    theme: str
+
+
+@dataclass(frozen=True)
 class ApplyActionCommand:
     session_id: str
     choice_id: str

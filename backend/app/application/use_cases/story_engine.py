@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.application.dto.story_commands import ApplyActionCommand, StartStoryCommand
-from app.application.dto.story_results import StoryActionResult, StoryCardView, StoryStartResult
+from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
+from app.application.dto.story_results import QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult
 from app.application.errors import InvalidChoiceError, SessionNotFoundError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
@@ -15,6 +15,10 @@ class StoryEngineUseCase:
     def __init__(self, repository: StoryStateRepository, generator: StoryGeneratorPort) -> None:
         self._repository = repository
         self._generator = generator
+
+    async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
+        questions = await self._generator.generate_initial_questions(command.theme.strip())
+        return QuestionsResult(theme=command.theme.strip(), questions=questions)
 
     async def start_story(self, command: StartStoryCommand) -> StoryStartResult:
         state = StoryState(

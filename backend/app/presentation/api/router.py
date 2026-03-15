@@ -7,6 +7,8 @@ from app.application.use_cases.story_engine import StoryEngineUseCase
 from app.core.settings import get_settings
 from app.presentation.api.dependencies import get_use_case
 from app.presentation.api.schemas import (
+    GenerateQuestionsRequest,
+    GenerateQuestionsResponse,
     StoryActionRequest,
     StoryActionResponse,
     StoryCardResponse,
@@ -14,6 +16,8 @@ from app.presentation.api.schemas import (
     StoryStartResponse,
     to_action_command,
     to_action_response,
+    to_questions_command,
+    to_questions_response,
     to_start_command,
     to_start_response,
     to_story_card_response,
@@ -25,6 +29,25 @@ router = APIRouter()
 @router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": get_settings().app_env}
+
+
+@router.post(
+    "/story/questions",
+    response_model=GenerateQuestionsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def generate_questions(
+    request: GenerateQuestionsRequest,
+    use_case: StoryEngineUseCase = Depends(get_use_case),
+) -> GenerateQuestionsResponse:
+    try:
+        result = await use_case.generate_questions(to_questions_command(request))
+        return to_questions_response(result)
+    except StoryGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(

@@ -4,10 +4,10 @@ import asyncio
 
 import pytest
 
-from app.application.dto.story_commands import ApplyActionCommand, StartStoryCommand
+from app.application.dto.story_commands import ApplyActionCommand, GenerateQuestionsCommand, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import Scene, SceneChoice, SceneMetadata
+from app.domain.models.story import InitialQuestion, Scene, SceneChoice, SceneMetadata
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -30,6 +30,26 @@ def _scene(scene_id: str, chapter: int) -> Scene:
 
 
 class FakeGenerator:
+    async def generate_initial_questions(self, theme):  # noqa: ANN001
+        return [
+            InitialQuestion(
+                question="What color is the sky in your world?",
+                options=["Crimson", "Silver", "Emerald", "Obsidian"],
+            ),
+            InitialQuestion(
+                question="What drives the hero?",
+                options=["Revenge", "Curiosity", "Love", "Duty"],
+            ),
+            InitialQuestion(
+                question="What lurks in the shadows?",
+                options=["Ghosts", "Machines", "Beasts", "Nothing"],
+            ),
+            InitialQuestion(
+                question="How does the story end?",
+                options=["In flames", "With a whisper", "With a dance", "With silence"],
+            ),
+        ]
+
     async def generate_opening_scene(self, state):  # noqa: ANN001
         return _scene(scene_id="scene-1", chapter=1)
 
@@ -114,3 +134,18 @@ def test_apply_action_rejects_invalid_choice_id() -> None:
                 ApplyActionCommand(session_id=start.session_id, choice_id="INVALID")
             )
         )
+
+
+def test_generate_questions_returns_four_questions() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(repository=repo, generator=FakeGenerator())
+
+    result = asyncio.run(
+        use_case.generate_questions(GenerateQuestionsCommand(theme="Cyberpunk Noir"))
+    )
+
+    assert result.theme == "Cyberpunk Noir"
+    assert len(result.questions) == 4
+    for q in result.questions:
+        assert q.question
+        assert len(q.options) == 4
