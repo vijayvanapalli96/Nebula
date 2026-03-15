@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.application.errors import StoryGenerationError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.core.settings import Settings
-from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, Scene, SceneChoice, SceneMetadata, StoryState
+from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryState
 from app.infrastructure.ai.prompts import (
     INITIAL_QUESTIONS_SYSTEM_PROMPT,
     OPENING_SCENE_SYSTEM_PROMPT,
@@ -92,7 +92,7 @@ class GeminiStoryGenerator(StoryGeneratorPort):
                     system_instruction=INITIAL_QUESTIONS_SYSTEM_PROMPT,
                     temperature=0.9,
                     top_p=0.95,
-                    max_output_tokens=800,
+                    max_output_tokens=2000,
                     response_mime_type="application/json",
                 ),
             )

@@ -111,18 +111,24 @@ class StoryEngineUseCase:
 
     async def _generate_and_upload_video(self, target, attr: str, prompt: str, prefix: str) -> None:  # noqa: ANN001
         """Generate a video and upload to GCS, setting the attr on target."""
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             request = VideoGenerationRequest(
                 prompt=prompt,
                 model="veo-2.0-generate-001",
-                duration_seconds=4,
+                duration_seconds=5,
                 aspect_ratio="16:9",
             )
+            logger.info("Starting video generation for %s ...", prefix)
             result = await self._video_generator.generate(request)  # type: ignore[union-attr]
+            logger.info("Video generated for %s (%d bytes), uploading...", prefix, result.file_size_bytes)
             path = f"{prefix}/{uuid4()}.mp4"
             url = await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
             setattr(target, attr, url)
-        except Exception:
+            logger.info("Video uploaded for %s: %s", prefix, url)
+        except Exception as exc:
+            logger.warning("Video generation failed for %s: %s", prefix, exc)
             pass  # Graceful degradation — leave video_uri as None
 
     async def start_story(self, command: StartStoryCommand) -> StoryStartResult:
