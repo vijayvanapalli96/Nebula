@@ -1,2 +1,15 @@
 *node_modules
 *.vite
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+*.png
+*.mp4
+backend/.venv/
+backend/.env
+backend/generated_videos/*.mp4
+backend/test_*.py
+backend/test_*.png
+backend/test_*.mp4
