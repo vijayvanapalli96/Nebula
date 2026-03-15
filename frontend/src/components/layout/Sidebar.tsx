@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   BookOpen,
@@ -16,6 +16,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 
 // --- Nav items config ------------------------------------------------------
 
@@ -121,6 +122,18 @@ interface SidebarContentProps {
 const SidebarContent: React.FC<SidebarContentProps> = ({
   isOpen, isMobile, onToggle, onClose, isDark, toggleTheme, pathname,
 }) => {
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
+  const displayName = user?.displayName ?? user?.email?.split('@')[0] ?? 'User';
+  const userEmail   = user?.email ?? '';
+  const initial     = (user?.displayName?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
+
   const labelVisible = isOpen || isMobile;
 
   return (
@@ -223,6 +236,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         </div>
 
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Sign out"
+          onClick={handleLogout}
+          onKeyDown={(e) => e.key === 'Enter' && handleLogout()}
           className={`flex items-center rounded-xl transition-colors cursor-pointer ${
             labelVisible ? 'gap-3 px-3 py-2.5' : 'justify-center py-2.5'
           }`}
@@ -230,8 +248,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)')}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-bold text-white">T</span>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold text-white">{initial}</span>
+            )}
           </div>
           <AnimatePresence>
             {labelVisible && (
@@ -243,10 +265,10 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 className="flex-1 min-w-0"
               >
                 <p className="text-xs font-semibold leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
-                  Tarang
+                  {displayName}
                 </p>
                 <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
-                  tarang@nebula.ai
+                  {userEmail}
                 </p>
               </motion.div>
             )}

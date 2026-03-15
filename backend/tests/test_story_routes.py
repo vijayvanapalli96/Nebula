@@ -89,8 +89,6 @@ class FakeUseCase:
                         direction_hint="Danger awaits",
                         image_prompt="dark alley neon",
                         video_prompt="camera pushes into alley",
-                        image_uri="https://storage.example.com/choice-a.png",
-                        video_uri="https://storage.example.com/choice-a.mp4",
                     ),
                     OpeningChoice(
                         choice_id="B",
@@ -98,8 +96,6 @@ class FakeUseCase:
                         direction_hint="A broader view",
                         image_prompt="tall tower clouds",
                         video_prompt="camera tilts up tower",
-                        image_uri="https://storage.example.com/choice-b.png",
-                        video_uri="https://storage.example.com/choice-b.mp4",
                     ),
                     OpeningChoice(
                         choice_id="C",
@@ -107,12 +103,16 @@ class FakeUseCase:
                         direction_hint="Mystery deepens",
                         image_prompt="cloaked figure corner",
                         video_prompt="camera follows figure",
-                        image_uri="https://storage.example.com/choice-c.png",
-                        video_uri="https://storage.example.com/choice-c.mp4",
                     ),
                 ],
             ),
         )
+
+    def fire_questions_media(self, questions):  # noqa: ANN001
+        return None
+
+    def fire_opening_scene_media(self, scene):  # noqa: ANN001
+        return None
 
     async def start_story(self, command):  # noqa: ANN001
         return StoryStartResult(session_id="session-1", scene=_scene(scene_id="scene-1", chapter=1))
@@ -222,7 +222,7 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
         assert len(q["options"]) == 4
         for opt in q["options"]:
             assert "text" in opt
-            assert "image_uri" in opt
+            assert "image_prompt" in opt
 
 
 def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:
@@ -253,8 +253,8 @@ def test_opening_scene_route_returns_scene(client: TestClient) -> None:
     assert body["scene_title"] == "Crimson Echoes"
     assert len(body["choices"]) == 3
     assert body["choices"][0]["choice_id"] == "A"
-    assert body["choices"][0]["image_uri"] == "https://storage.example.com/choice-a.png"
-    assert body["choices"][0]["video_uri"] == "https://storage.example.com/choice-a.mp4"
+    assert body["choices"][0]["image_prompt"] == "dark alley neon"
+    assert body["choices"][0]["video_prompt"] == "camera pushes into alley"
 
 
 def test_opening_scene_route_rejects_missing_answers(client: TestClient) -> None:

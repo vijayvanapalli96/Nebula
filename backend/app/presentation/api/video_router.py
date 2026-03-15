@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from app.application.errors import VideoGenerationError, VideoJobNotFoundError
 from app.application.use_cases.video_generation import VideoGenerationUseCase
-from app.presentation.api.dependencies import get_video_use_case
+from app.presentation.api.dependencies import get_video_use_case, require_auth
 from app.presentation.api.video_schemas import (
     VideoGenerateRequest,
     VideoJobListResponse,
@@ -14,7 +14,7 @@ from app.presentation.api.video_schemas import (
     to_video_job_response,
 )
 
-video_router = APIRouter(prefix="/v1/videos", tags=["video"])
+video_router = APIRouter(prefix="/v1/videos", tags=["video"], dependencies=[Depends(require_auth)])
 
 
 @video_router.post(

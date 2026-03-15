@@ -102,7 +102,7 @@ class GenerateQuestionsRequest(BaseModel):
 
 class QuestionOptionResponse(BaseModel):
     text: str = Field(..., min_length=1, description="Option text.")
-    image_uri: str | None = Field(default=None, description="GCS public URL of option image.")
+    image_prompt: str = Field(..., description="Prompt used to generate the option image.")
 
 
 class QuestionResponse(BaseModel):
@@ -113,6 +113,7 @@ class QuestionResponse(BaseModel):
 class GenerateQuestionsResponse(BaseModel):
     theme: str
     questions: list[QuestionResponse] = Field(..., min_length=1)
+    media_request_id: str | None = Field(default=None, description="Poll /story/media/{id} for image URIs.")
 
 
 class AnswerInput(BaseModel):
@@ -130,8 +131,8 @@ class OpeningChoiceResponse(BaseModel):
     choice_id: str = Field(..., description="Choice identifier.")
     choice_text: str = Field(..., min_length=1, description="Choice text shown to the player.")
     direction_hint: str = Field(..., min_length=1, description="Hint about narrative direction.")
-    image_uri: str | None = Field(default=None, description="GCS URL of choice preview image.")
-    video_uri: str | None = Field(default=None, description="GCS URL of choice action video.")
+    image_prompt: str = Field(default="", description="Prompt for choice preview image.")
+    video_prompt: str = Field(default="", description="Prompt for choice action video.")
 
 
 class OpeningSceneResponse(BaseModel):
@@ -139,8 +140,17 @@ class OpeningSceneResponse(BaseModel):
     character_name: str
     scene_title: str
     scene_description: str
-    video_uri: str | None = Field(default=None, description="GCS URL of opening scene video.")
+    video_prompt: str = Field(default="", description="Prompt for the opening scene video.")
     choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
+    media_request_id: str | None = Field(default=None, description="Poll /story/media/{id} for media URIs.")
+
+
+class MediaResponse(BaseModel):
+    """Simple map of asset_key → GCS URI (null if not ready yet)."""
+    request_id: str
+    assets: dict[str, str | None] = Field(
+        ..., description="Map of asset key to GCS signed URL. null if still generating.",
+    )
 
 
 def to_start_command(request: StoryStartRequest) -> StartStoryCommand:
@@ -246,37 +256,45 @@ def to_opening_scene_command(request: OpeningSceneRequest) -> GenerateOpeningSce
     )
 
 
-def to_opening_scene_response(result: OpeningSceneResult) -> OpeningSceneResponse:
+def to_opening_scene_response(
+    result: OpeningSceneResult,
+    media_request_id: str | None = None,
+) -> OpeningSceneResponse:
     return OpeningSceneResponse(
         theme=result.theme,
         character_name=result.character_name,
         scene_title=result.scene.scene_title,
         scene_description=result.scene.scene_description,
-        video_uri=result.scene.video_uri,
+        video_prompt=result.scene.video_prompt,
         choices=[
             OpeningChoiceResponse(
                 choice_id=c.choice_id,
                 choice_text=c.choice_text,
                 direction_hint=c.direction_hint,
-                image_uri=c.image_uri,
-                video_uri=c.video_uri,
+                image_prompt=c.image_prompt,
+                video_prompt=c.video_prompt,
             )
             for c in result.scene.choices
         ],
+        media_request_id=media_request_id,
     )
 
 
-def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
+def to_questions_response(
+    result: QuestionsResult,
+    media_request_id: str | None = None,
+) -> GenerateQuestionsResponse:
     return GenerateQuestionsResponse(
         theme=result.theme,
         questions=[
             QuestionResponse(
                 question=q.question,
                 options=[
-                    QuestionOptionResponse(text=opt.text, image_uri=opt.image_uri)
+                    QuestionOptionResponse(text=opt.text, image_prompt=opt.image_prompt)
                     for opt in q.options
                 ],
             )
             for q in result.questions
         ],
+        media_request_id=media_request_id,
     )
