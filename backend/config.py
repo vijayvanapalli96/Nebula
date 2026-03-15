@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_port: int = 8000
     cors_allow_origins: str = "*"
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.0-flash"
     scene_word_limit: int = 120
 
     model_config = SettingsConfigDict(

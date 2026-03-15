@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class SceneMetadata(BaseModel):
@@ -35,7 +39,7 @@ class HistoryEntry(BaseModel):
     content: str = Field(..., min_length=1)
     choice_id: str | None = None
     scene_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class StoryState(BaseModel):
@@ -46,8 +50,8 @@ class StoryState(BaseModel):
     motivation: str
     history_log: list[HistoryEntry] = Field(default_factory=list)
     current_scene: SceneResponse | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class StoryStartRequest(BaseModel):
@@ -81,4 +85,3 @@ class StoryCard(BaseModel):
     last_scene_id: str | None = None
     updated_at: datetime
     choices_available: int = 0
-

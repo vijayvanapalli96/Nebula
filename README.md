@@ -7,7 +7,7 @@ Players start a story with character details, choose actions at each scene, and 
 ## What This Application Does
 
 - Starts personalized story sessions with genre, archetype, and motivation.
-- Generates scene-by-scene narrative progression using Gemini 1.5 Flash.
+- Generates scene-by-scene narrative progression using Gemini 2.0 Flash.
 - Returns scene data in a strict JSON shape for frontend rendering:
   - scene metadata
   - narrative text
@@ -22,7 +22,7 @@ Players start a story with character details, choose actions at each scene, and 
 - FastAPI
 - Uvicorn
 - Pydantic v2
-- `google-generativeai` SDK
+- `google-genai` SDK
 
 ## Project Structure
 
@@ -59,7 +59,7 @@ Update `.env`:
 
 ```env
 GEMINI_API_KEY=your_google_ai_studio_api_key
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
 ## Run The Service
@@ -161,4 +161,3 @@ Basic health endpoint.
 
 - Session storage is in-memory. Restarting the process clears all sessions.
 - To persist sessions in production, replace `InMemoryStoryStateRepository` with a Redis-backed implementation.
-

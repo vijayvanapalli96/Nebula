@@ -34,7 +34,7 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
+async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.app_env}
 
 
@@ -43,12 +43,12 @@ def health() -> dict[str, str]:
     response_model=StoryStartResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def start_story(
+async def start_story(
     request: StoryStartRequest,
     service: StoryEngineService = Depends(get_story_service),
 ) -> StoryStartResponse:
     try:
-        return service.start_story(request)
+        return await service.start_story(request)
     except StoryGenerationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -57,12 +57,12 @@ def start_story(
 
 
 @app.post("/story/action", response_model=StoryActionResponse)
-def story_action(
+async def story_action(
     request: StoryActionRequest,
     service: StoryEngineService = Depends(get_story_service),
 ) -> StoryActionResponse:
     try:
-        return service.apply_action(request)
+        return await service.apply_action(request)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except InvalidChoiceError as exc:
@@ -75,7 +75,7 @@ def story_action(
 
 
 @app.get("/stories/me", response_model=list[StoryCard])
-def list_my_stories(
+async def list_my_stories(
     service: StoryEngineService = Depends(get_story_service),
 ) -> list[StoryCard]:
     return service.list_active_stories()

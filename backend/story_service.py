@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from gemini_story_generator import GeminiStoryGenerator
@@ -31,7 +31,7 @@ class StoryEngineService:
         self._repository = repository
         self._generator = generator
 
-    def start_story(self, request: StoryStartRequest) -> StoryStartResponse:
+    async def start_story(self, request: StoryStartRequest) -> StoryStartResponse:
         session_id = str(uuid4())
         state = StoryState(
             session_id=session_id,
@@ -41,7 +41,7 @@ class StoryEngineService:
             motivation=request.motivation.strip(),
         )
 
-        scene = self._generator.generate_opening_scene(state)
+        scene = await self._generator.generate_opening_scene(state)
         self._normalize_scene(scene, chapter=1)
         state.current_scene = scene
         state.history_log.append(
@@ -52,12 +52,12 @@ class StoryEngineService:
                 content=scene.narrative_text,
             )
         )
-        state.updated_at = datetime.utcnow()
+        state.updated_at = datetime.now(UTC)
         self._repository.create(state)
 
         return StoryStartResponse(session_id=session_id, scene=scene)
 
-    def apply_action(self, request: StoryActionRequest) -> StoryActionResponse:
+    async def apply_action(self, request: StoryActionRequest) -> StoryActionResponse:
         state = self._repository.get(request.session_id)
         if state is None:
             raise SessionNotFoundError(f"Session '{request.session_id}' not found.")
@@ -83,7 +83,7 @@ class StoryEngineService:
             )
         )
 
-        scene = self._generator.generate_next_scene(state, chosen=chosen)
+        scene = await self._generator.generate_next_scene(state, chosen=chosen)
         self._normalize_scene(scene, chapter=next_chapter)
         state.current_scene = scene
         state.history_log.append(
@@ -94,7 +94,7 @@ class StoryEngineService:
                 content=scene.narrative_text,
             )
         )
-        state.updated_at = datetime.utcnow()
+        state.updated_at = datetime.now(UTC)
         self._repository.save(state)
 
         return StoryActionResponse(session_id=request.session_id, scene=scene)
@@ -142,4 +142,3 @@ class StoryEngineService:
         scene.metadata.chapter = chapter
         if not scene.metadata.scene_id.strip():
             scene.metadata.scene_id = f"scene-{chapter}"
-

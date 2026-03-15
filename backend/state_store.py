@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import RLock
 from typing import Protocol
 
@@ -44,10 +44,9 @@ class InMemoryStoryStateRepository:
 
     def save(self, state: StoryState) -> None:
         with self._lock:
-            state.updated_at = datetime.utcnow()
+            state.updated_at = datetime.now(UTC)
             self._sessions[state.session_id] = state.model_copy(deep=True)
 
     def list_all(self) -> list[StoryState]:
         with self._lock:
             return [story.model_copy(deep=True) for story in self._sessions.values()]
-

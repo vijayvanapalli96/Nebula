@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from config import Settings
 from prompts import (
@@ -22,36 +23,34 @@ class StoryGenerationError(RuntimeError):
 class GeminiStoryGenerator:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._model: genai.GenerativeModel | None = None
+        self._client: genai.Client | None = None
 
         if settings.gemini_api_key:
-            genai.configure(api_key=settings.gemini_api_key)
-            self._model = genai.GenerativeModel(
-                model_name=settings.gemini_model,
-                system_instruction=SYSTEM_PROMPT,
-            )
+            self._client = genai.Client(api_key=settings.gemini_api_key)
 
-    def generate_opening_scene(self, state: StoryState) -> SceneResponse:
+    async def generate_opening_scene(self, state: StoryState) -> SceneResponse:
         prompt = build_opening_prompt(state)
-        return self._generate_scene(prompt, genre=state.genre)
+        return await self._generate_scene(prompt, genre=state.genre)
 
-    def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> SceneResponse:
+    async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> SceneResponse:
         prompt = build_action_prompt(state, chosen)
-        return self._generate_scene(prompt, genre=state.genre)
+        return await self._generate_scene(prompt, genre=state.genre)
 
-    def _generate_scene(self, prompt: str, genre: str) -> SceneResponse:
-        if self._model is None:
+    async def _generate_scene(self, prompt: str, genre: str) -> SceneResponse:
+        if self._client is None:
             raise StoryGenerationError("GEMINI_API_KEY is not configured.")
 
         try:
-            response = self._model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.85,
-                    "top_p": 0.95,
-                    "max_output_tokens": 900,
-                    "response_mime_type": "application/json",
-                },
+            response = await self._client.aio.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=0.85,
+                    top_p=0.95,
+                    max_output_tokens=900,
+                    response_mime_type="application/json",
+                ),
             )
         except Exception as exc:
             raise StoryGenerationError(f"Gemini request failed: {exc}") from exc
@@ -104,4 +103,3 @@ def _parse_model_json(raw_text: str) -> dict[str, Any]:
             return json.loads(raw[start : end + 1])
         except json.JSONDecodeError as exc:
             raise StoryGenerationError("Gemini output JSON parsing failed.") from exc
-
