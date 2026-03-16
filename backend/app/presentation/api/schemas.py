@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -134,6 +134,9 @@ class StoryDetailResponse(BaseModel):
     question_count: int | None = None
     questions_generated: list[str] = Field(default_factory=list)
     created_at: datetime | None = None
+    questions: list[dict[str, Any]] = Field(default_factory=list)
+    answers: list[dict[str, Any]] = Field(default_factory=list)
+    scenes: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class StoryThemeResponse(BaseModel):
@@ -329,6 +332,9 @@ def to_story_detail_response(view: StoryDetailView) -> StoryDetailResponse:
         question_count=view.question_count,
         questions_generated=view.questions_generated or [],
         created_at=view.created_at,
+        questions=view.questions,
+        answers=view.answers,
+        scenes=view.scenes,
     )
 
 

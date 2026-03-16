@@ -61,3 +61,20 @@ class StoryDocumentRepository(Protocol):
     ) -> None:
         """Update a single choice's imageUrl/videoUrl inside a scene document."""
         ...
+
+    def get_scene(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+    ) -> dict | None:
+        """Read one scene document from users/{user_id}/stories/{story_id}/scenes/{scene_id}."""
+        ...
+
+    def get_story_payload(
+        self,
+        user_id: str,
+        story_id: str,
+    ) -> dict[str, list[dict]]:
+        """Return story sub-collections as raw documents: questions, answers, scenes."""
+        ...

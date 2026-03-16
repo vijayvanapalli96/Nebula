@@ -241,6 +241,27 @@ class FakeUseCase:
                 "Who can be trusted?",
             ],
             created_at=datetime.now(UTC),
+            questions=[
+                {
+                    "questionId": "q_1",
+                    "question": "What drives the hero?",
+                    "options": [{"text": "Duty"}, {"text": "Revenge"}],
+                }
+            ],
+            answers=[
+                {
+                    "questionId": "q_1",
+                    "question": "What drives the hero?",
+                    "selectedOption": "Duty",
+                }
+            ],
+            scenes=[
+                {
+                    "sceneId": "scene_001",
+                    "title": "The Last Detective",
+                    "choices": [{"choiceId": "A", "choiceText": "Enter the alley"}],
+                }
+            ],
         )
 
 
@@ -354,6 +375,9 @@ def test_story_detail_route_returns_full_story_payload(client: TestClient) -> No
     assert body["theme_description"]
     assert body["question_count"] == 4
     assert len(body["questions_generated"]) == 2
+    assert len(body["questions"]) == 1
+    assert len(body["answers"]) == 1
+    assert len(body["scenes"]) == 1
     assert client.app.state.fake_use_case.last_story_detail_request == ("test-user", "story-1")
 
 

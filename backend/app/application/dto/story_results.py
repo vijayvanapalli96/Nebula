@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.domain.models.story import InitialQuestion, OpeningScene, Scene
@@ -82,6 +82,9 @@ class StoryDetailView:
     question_count: int | None = None
     questions_generated: list[str] | None = None
     created_at: datetime | None = None
+    questions: list[dict] = field(default_factory=list)
+    answers: list[dict] = field(default_factory=list)
+    scenes: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
