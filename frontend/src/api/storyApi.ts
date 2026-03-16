@@ -1,6 +1,6 @@
 import { auth } from '../lib/firebase';
 import type { Question, QuestionOption } from '../store/storyCreationStore';
-import type { Genre, UserStory } from '../types/story';
+import type { Genre, StoryDetail, UserStory } from '../types/story';
 import type { Scene } from '../store/storySessionStore';
 
 export interface StoryQuestionsResponse {
@@ -239,4 +239,23 @@ export async function fetchUserStories(): Promise<UserStory[]> {
   }
 
   return res.json() as Promise<UserStory[]>;
+}
+
+/** GET /story/{user_id}/{story_id} — returns full story card + metadata for one story. */
+export async function fetchStoryDetail(storyId: string, userId?: string): Promise<StoryDetail> {
+  const resolvedUserId = userId?.trim() || auth.currentUser?.uid;
+  if (!resolvedUserId) {
+    throw new Error('No authenticated user.');
+  }
+
+  const res = await fetch(`${BASE_URL}/story/${encodeURIComponent(resolvedUserId)}/${encodeURIComponent(storyId)}`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch story detail: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json() as Promise<StoryDetail>;
 }

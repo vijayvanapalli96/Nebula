@@ -58,6 +58,7 @@ const GraphInner: React.FC = () => {
           color="rgba(139,92,246,0.18)"
         />
         <Controls
+          className="story-graph-controls"
           style={{
             background: 'rgba(20,15,35,0.85)',
             border: '1px solid rgba(139,92,246,0.25)',
@@ -65,6 +66,7 @@ const GraphInner: React.FC = () => {
           }}
         />
         <MiniMap
+          className="story-graph-minimap"
           nodeColor={(n) =>
             n.type === 'sceneNode' ? 'rgba(139,92,246,0.8)' : 'rgba(96,165,250,0.6)'
           }
@@ -122,7 +124,7 @@ const StoryGraphPage: React.FC = () => {
   if (!currentScene) return null;
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: '#0a0a12' }}>
+    <div className="story-graph-page fixed inset-0 flex flex-col" style={{ backgroundColor: '#0a0a12' }}>
       {/* ── Top bar ── */}
       <motion.div
         className="flex-shrink-0 flex items-center justify-between px-4 py-3"

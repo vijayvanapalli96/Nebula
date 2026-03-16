@@ -96,7 +96,7 @@ const ThemeLoadingPage: React.FC = () => {
   // Kick off both fetches in parallel on mount
   useEffect(() => {
     Promise.all([fetchThemes(), fetchUserStories().catch(() => { /* stories failure is non-fatal */ })])
-      .then(() => navigate('/dashboard', { replace: true }))
+      .then(() => navigate('/dashboard', { replace: true, state: { prefetched: true } }))
       .catch(() => {
         // error is already written to the store by fetchThemes;
         // the retry UI below will surface it.
@@ -221,7 +221,7 @@ const ThemeLoadingPage: React.FC = () => {
             <button
               onClick={() =>
                 Promise.all([fetchThemes(), fetchUserStories().catch(() => {})])
-                  .then(() => navigate('/dashboard', { replace: true }))
+                  .then(() => navigate('/dashboard', { replace: true, state: { prefetched: true } }))
                   .catch(() => {})
               }
               className="text-xs font-semibold text-red-400 underline underline-offset-2"

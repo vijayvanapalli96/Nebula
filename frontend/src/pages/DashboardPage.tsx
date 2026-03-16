@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import StoryCarousel from '../features/stories/StoryCarousel';
@@ -7,6 +7,7 @@ import GenreCarousel from '../features/stories/GenreCarousel';
 import CreateStoryModal from '../features/stories/CreateStoryModal';
 import { useStoryStore } from '../store/storyStore';
 import { useStoryThemeStore } from '../store/storyThemeStore';
+import { useAuthStore } from '../store/authStore';
 
 // ── Quick stat card ────────────────────────────────────────────────────────
 const StatCard: React.FC<{ label: string; value: number | string; accent?: string }> = ({
@@ -62,19 +63,28 @@ const fadeUp = {
 // ─── Page ─────────────────────────────────────────────────────────────────
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const user = useAuthStore((s) => s.user);
   const { userStories, featuredUserStories, fetchUserStories } = useStoryStore();
   const { featuredThemes, themes, fetchThemes } = useStoryThemeStore();
+  const prefetchedFromLoading =
+    (location.state as { prefetched?: boolean } | null)?.prefetched === true;
 
   // Fallback: fetch if the user lands here without going through /loading
   useEffect(() => {
-    fetchThemes();
-    fetchUserStories();
+    void fetchThemes();
+    void fetchUserStories(prefetchedFromLoading ? undefined : { force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prefetchedFromLoading]);
 
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = (
+    user?.displayName?.trim().split(/\s+/)[0]
+    ?? user?.email?.split('@')[0]
+    ?? 'there'
+  );
 
   const inProgress = userStories.filter((s) => s.status === 'active' || s.status === 'opening_scene_ready').length;
   const completed  = userStories.filter((s) => s.status === 'completed').length;
@@ -95,7 +105,7 @@ const DashboardPage: React.FC = () => {
             {greeting} 👋
           </p>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-black" style={{ color: 'var(--text-primary)' }}>
-            Welcome back, Tarang
+            Welcome back, {firstName}
           </h2>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {inProgress > 0

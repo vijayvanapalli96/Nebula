@@ -161,6 +161,34 @@ class FirestoreStoryDocumentRepository:
             return None
         return snap.to_dict() or {}
 
+    def get_story_payload(
+        self,
+        user_id: str,
+        story_id: str,
+    ) -> dict[str, list[dict]]:
+        """Read questions, answers, and scenes subcollections for one story."""
+        story_ref = (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+        )
+
+        def _read_subcollection(name: str, id_key: str) -> list[dict]:
+            docs = story_ref.collection(name).stream()
+            rows: list[dict] = []
+            for doc in docs:
+                payload = doc.to_dict() or {}
+                payload.setdefault(id_key, doc.id)
+                rows.append(payload)
+            return rows
+
+        return {
+            "questions": _read_subcollection("questions", "questionId"),
+            "answers": _read_subcollection("answers", "questionId"),
+            "scenes": _read_subcollection("scenes", "sceneId"),
+        }
+
     def update_scene_choice_media(
         self,
         user_id: str,

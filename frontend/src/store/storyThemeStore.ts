@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { loadThemes } from '../services/themeService';
 import type { Genre } from '../types/story';
 
+let themesRequestInFlight: Promise<void> | null = null;
+
 /** Deterministic-ish shuffle — no external deps required */
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -14,6 +16,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 interface StoryThemeState {
   themes: Genre[];
+  hasFetchedThemes: boolean;
   featuredThemes: Genre[]; // 4 random picks
   loading: boolean;
   error: string | null;
@@ -26,32 +29,41 @@ interface StoryThemeState {
 
 export const useStoryThemeStore = create<StoryThemeState>((set, get) => ({
   themes: [],
+  hasFetchedThemes: false,
   featuredThemes: [],
   loading: false,
   error: null,
 
   fetchThemes: async () => {
     // Cache — skip network if already populated
-    if (get().themes.length > 0) return;
+    if (get().hasFetchedThemes) return;
+    // De-duplicate concurrent calls (e.g. React StrictMode mount effects)
+    if (themesRequestInFlight) return themesRequestInFlight;
 
-    set({ loading: true, error: null });
-    try {
-      const themes = await loadThemes();
-      const featured = shuffle(themes).slice(0, 4);
-      set({ themes, featuredThemes: featured, loading: false });
-    } catch (err) {
-      set({
-        loading: false,
-        error: err instanceof Error ? err.message : 'Failed to load themes from the server.',
-      });
-      // Re-throw so callers (ThemeLoadingPage) know the fetch failed
-      throw err;
-    }
+    themesRequestInFlight = (async () => {
+      set({ loading: true, error: null });
+      try {
+        const themes = await loadThemes();
+        const featured = shuffle(themes).slice(0, 4);
+        set({ themes, featuredThemes: featured, loading: false, hasFetchedThemes: true });
+      } catch (err) {
+        set({
+          loading: false,
+          error: err instanceof Error ? err.message : 'Failed to load themes from the server.',
+        });
+        // Re-throw so callers (ThemeLoadingPage) know the fetch failed
+        throw err;
+      } finally {
+        themesRequestInFlight = null;
+      }
+    })();
+
+    return themesRequestInFlight;
   },
 
   setThemes: (themes) => {
     const featured = shuffle(themes).slice(0, 4);
-    set({ themes, featuredThemes: featured });
+    set({ themes, featuredThemes: featured, hasFetchedThemes: true });
   },
 
   setFeaturedThemes: (featuredThemes) => set({ featuredThemes }),

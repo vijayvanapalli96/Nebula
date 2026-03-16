@@ -68,6 +68,10 @@ backend/
   .env.template
 ```
 
+Architecture diagrams (system + backend layers + media pipeline):
+
+- `documentation/backend/ARCHITECTURE.md`
+
 ### SOLID notes
 
 - Single Responsibility: each layer has focused classes/modules (routing, use case, repository, AI adapter).
@@ -208,6 +212,7 @@ Response includes card fields plus story metadata fields:
 - `choices_available`, `progress`, `cover_image`, `last_played_at`
 - `status`, `theme_id`, `theme_title`, `theme_category`, `theme_description`
 - `question_count`, `questions_generated`, `created_at`, `updated_at`
+- `questions`, `answers`, `scenes` (raw sub-collection payloads from story document)
 
 ### `GET /story/themes`
 

@@ -497,6 +497,10 @@ class StoryEngineUseCase:
         """Return full story detail view for a given user and story."""
         resolved_user_id = user_id.strip()
         resolved_story_id = story_id.strip()
+        story_payload = self._get_story_payload(
+            user_id=resolved_user_id,
+            story_id=resolved_story_id,
+        )
 
         if self._user_story_repository is not None and resolved_user_id and resolved_story_id:
             record = self._user_story_repository.get_by_user_id_and_story_id(
@@ -504,7 +508,10 @@ class StoryEngineUseCase:
                 story_id=resolved_story_id,
             )
             if record is not None:
-                return self._to_story_detail_view_from_record(record)
+                return self._to_story_detail_view_from_record(
+                    record,
+                    story_payload=story_payload,
+                )
 
         # Fallback for local/dev runs that only have in-memory sessions.
         fallback_state = self._repository.get(resolved_story_id)
@@ -528,6 +535,9 @@ class StoryEngineUseCase:
             status=card.status,
             created_at=fallback_state.created_at,
             theme_category=card.genre,
+            questions=story_payload.get("questions", []),
+            answers=story_payload.get("answers", []),
+            scenes=story_payload.get("scenes", []),
         )
 
     def list_story_themes(self) -> list[StoryThemeView]:
@@ -633,8 +643,12 @@ class StoryEngineUseCase:
         )
 
     @staticmethod
-    def _to_story_detail_view_from_record(record: UserStoryRecord) -> StoryDetailView:
+    def _to_story_detail_view_from_record(
+        record: UserStoryRecord,
+        story_payload: dict[str, list[dict]] | None = None,
+    ) -> StoryDetailView:
         session_id = (record.session_id or record.story_id).strip()
+        payload = story_payload or {}
         return StoryDetailView(
             story_id=record.story_id,
             user_id=record.user_id,
@@ -657,7 +671,29 @@ class StoryEngineUseCase:
             question_count=record.question_count,
             questions_generated=record.questions_generated,
             created_at=record.created_at,
+            questions=payload.get("questions", []),
+            answers=payload.get("answers", []),
+            scenes=payload.get("scenes", []),
         )
+
+    def _get_story_payload(self, user_id: str, story_id: str) -> dict[str, list[dict]]:
+        if self._story_doc_repository is None or not user_id or not story_id:
+            return {"questions": [], "answers": [], "scenes": []}
+        try:
+            payload = self._story_doc_repository.get_story_payload(user_id, story_id)
+        except Exception:
+            logger.exception(
+                "Failed to read story payload for user_id=%s story_id=%s",
+                user_id,
+                story_id,
+            )
+            return {"questions": [], "answers": [], "scenes": []}
+
+        return {
+            "questions": list(payload.get("questions", [])),
+            "answers": list(payload.get("answers", [])),
+            "scenes": list(payload.get("scenes", [])),
+        }
 
     @staticmethod
     def _find_choice(choices: list[SceneChoice], choice_id: str) -> SceneChoice | None:

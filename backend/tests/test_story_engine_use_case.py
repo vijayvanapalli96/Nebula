@@ -245,6 +245,30 @@ class FakeUserStoryRepository:
         )
 
 
+class FakeStoryDocumentRepository:
+    def get_story_payload(self, user_id: str, story_id: str) -> dict[str, list[dict]]:
+        return {
+            "questions": [
+                {
+                    "questionId": "q_1",
+                    "question": "What drives the hero?",
+                }
+            ],
+            "answers": [
+                {
+                    "questionId": "q_1",
+                    "selectedOption": "Duty",
+                }
+            ],
+            "scenes": [
+                {
+                    "sceneId": "scene_001",
+                    "title": "Crimson Echoes",
+                }
+            ],
+        }
+
+
 def test_start_story_creates_session_and_opening_scene() -> None:
     repo = InMemoryStoryStateRepository()
     use_case = StoryEngineUseCase(repository=repo, generator=FakeGenerator())
@@ -441,6 +465,7 @@ def test_get_story_detail_returns_firestore_story_when_available() -> None:
         repository=repo,
         generator=FakeGenerator(),
         user_story_repository=FakeUserStoryRepository(),
+        story_doc_repository=FakeStoryDocumentRepository(),
     )
 
     result = use_case.get_story_detail(
@@ -454,6 +479,9 @@ def test_get_story_detail_returns_firestore_story_when_available() -> None:
     assert result.theme_id == "theme-cyberpunk"
     assert result.question_count == 4
     assert result.questions_generated == ["Q1", "Q2"]
+    assert len(result.questions) == 1
+    assert len(result.answers) == 1
+    assert len(result.scenes) == 1
 
 
 def test_get_story_detail_returns_none_when_story_missing() -> None:
