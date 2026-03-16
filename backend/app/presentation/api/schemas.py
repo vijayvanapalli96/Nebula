@@ -85,6 +85,7 @@ class StoryActionResponse(BaseModel):
 
 
 class StoryCardResponse(BaseModel):
+    story_id: str
     session_id: str
     title: str
     genre: str
@@ -93,6 +94,10 @@ class StoryCardResponse(BaseModel):
     last_scene_id: str | None = None
     updated_at: datetime
     choices_available: int = 0
+    progress: int | None = None
+    cover_image: str | None = None
+    last_played_at: datetime | None = None
+    status: str | None = None
 
 
 class StoryThemeResponse(BaseModel):
@@ -228,6 +233,7 @@ def to_action_response(result: StoryActionResult) -> StoryActionResponse:
 
 def to_story_card_response(view: StoryCardView) -> StoryCardResponse:
     return StoryCardResponse(
+        story_id=view.story_id,
         session_id=view.session_id,
         title=view.title,
         genre=view.genre,
@@ -236,6 +242,10 @@ def to_story_card_response(view: StoryCardView) -> StoryCardResponse:
         last_scene_id=view.last_scene_id,
         updated_at=view.updated_at,
         choices_available=view.choices_available,
+        progress=view.progress,
+        cover_image=view.cover_image,
+        last_played_at=view.last_played_at,
+        status=view.status,
     )
 
 

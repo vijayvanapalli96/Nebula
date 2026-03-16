@@ -42,6 +42,9 @@ def _scene(scene_id: str, chapter: int) -> Scene:
 
 
 class FakeUseCase:
+    def __init__(self) -> None:
+        self.last_user_id: str | None = None
+
     async def generate_questions(self, command):  # noqa: ANN001
         return QuestionsResult(
             theme=command.theme,
@@ -130,9 +133,11 @@ class FakeUseCase:
             raise SessionNotFoundError("Session 'missing' not found.")
         return StoryActionResult(session_id=command.session_id, scene=_scene("scene-2", 2))
 
-    def list_active_stories(self) -> list[StoryCardView]:
+    def list_active_stories(self, user_id: str) -> list[StoryCardView]:
+        self.last_user_id = user_id
         return [
             StoryCardView(
+                story_id="story-1",
                 session_id="session-1",
                 title="Mara Vale: Noir Arc",
                 genre="Noir",
@@ -141,6 +146,9 @@ class FakeUseCase:
                 last_scene_id="scene-2",
                 updated_at=datetime.now(UTC),
                 choices_available=3,
+                progress=45,
+                cover_image="https://example.com/story-cover.png",
+                status="active",
             )
         ]
 
@@ -201,9 +209,11 @@ class FakeUseCase:
 @pytest.fixture
 def client() -> TestClient:
     app = create_app()
-    app.dependency_overrides[get_use_case] = lambda: FakeUseCase()
+    fake_use_case = FakeUseCase()
+    app.dependency_overrides[get_use_case] = lambda: fake_use_case
     app.dependency_overrides[require_auth] = lambda: "test-user"
     with TestClient(app) as test_client:
+        test_client.app.state.fake_use_case = fake_use_case
         yield test_client
     app.dependency_overrides.clear()
 
@@ -244,8 +254,13 @@ def test_list_stories_route_returns_cards(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 1
+    assert body[0]["story_id"] == "story-1"
     assert body[0]["session_id"] == "session-1"
     assert body[0]["choices_available"] == 3
+    assert body[0]["progress"] == 45
+    assert body[0]["cover_image"] == "https://example.com/story-cover.png"
+    assert body[0]["status"] == "active"
+    assert client.app.state.fake_use_case.last_user_id == "test-user"
 
 
 def test_list_story_themes_route_returns_themes(client: TestClient) -> None:

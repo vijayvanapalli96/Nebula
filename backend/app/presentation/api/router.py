@@ -142,11 +142,12 @@ async def story_action(
         ) from exc
 
 
-@router.get("/stories/me", response_model=list[StoryCardResponse], dependencies=[Depends(require_auth)])
+@router.get("/stories/me", response_model=list[StoryCardResponse])
 async def list_my_stories(
+    user_id: str = Depends(require_auth),
     use_case: StoryEngineUseCase = Depends(get_use_case),
 ) -> list[StoryCardResponse]:
-    views = use_case.list_active_stories()
+    views = use_case.list_active_stories(user_id=user_id)
     return [to_story_card_response(item) for item in views]
 
 

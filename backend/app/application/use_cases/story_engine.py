@@ -23,10 +23,11 @@ from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
 from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
-from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
+from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState, UserStoryRecord
 from app.domain.repositories.story_scene_repository import StorySceneRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
+from app.domain.repositories.user_story_repository import UserStoryRepository
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class StoryEngineUseCase:
         video_generator: VideoGeneratorPort | None = None,
         theme_repository: StoryThemeRepository | None = None,
         scene_repository: StorySceneRepository | None = None,
+        user_story_repository: UserStoryRepository | None = None,
         media_tracker: MediaTaskTracker | None = None,
     ) -> None:
         self._repository = repository
@@ -48,6 +50,7 @@ class StoryEngineUseCase:
         self._video_generator = video_generator
         self._theme_repository = theme_repository
         self._scene_repository = scene_repository
+        self._user_story_repository = user_story_repository
         self._media_tracker = media_tracker
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
@@ -278,7 +281,12 @@ class StoryEngineUseCase:
 
         return StoryActionResult(session_id=state.session_id, scene=scene)
 
-    def list_active_stories(self) -> list[StoryCardView]:
+    def list_active_stories(self, user_id: str) -> list[StoryCardView]:
+        resolved_user_id = user_id.strip()
+        if self._user_story_repository is not None and resolved_user_id:
+            records = self._user_story_repository.list_by_user_id(resolved_user_id)
+            return [self._to_story_card_view_from_record(record) for record in records]
+
         sessions = sorted(
             self._repository.list_all(),
             key=lambda item: item.updated_at,
@@ -355,6 +363,7 @@ class StoryEngineUseCase:
     @staticmethod
     def _to_story_card_view(state: StoryState) -> StoryCardView:
         return StoryCardView(
+            story_id=state.session_id,
             session_id=state.session_id,
             title=f"{state.character_name}: {state.genre.title()} Arc",
             genre=state.genre,
@@ -363,6 +372,25 @@ class StoryEngineUseCase:
             last_scene_id=state.current_scene.metadata.scene_id if state.current_scene else None,
             updated_at=state.updated_at,
             choices_available=len(state.current_scene.choices) if state.current_scene else 0,
+        )
+
+    @staticmethod
+    def _to_story_card_view_from_record(record: UserStoryRecord) -> StoryCardView:
+        session_id = (record.session_id or record.story_id).strip()
+        return StoryCardView(
+            story_id=record.story_id,
+            session_id=session_id,
+            title=record.title,
+            genre=record.genre,
+            character_name=record.character_name,
+            archetype=record.archetype,
+            last_scene_id=record.last_scene_id,
+            updated_at=record.updated_at,
+            choices_available=record.choices_available,
+            progress=record.progress,
+            cover_image=record.cover_image,
+            last_played_at=record.last_played_at,
+            status=record.status,
         )
 
     @staticmethod

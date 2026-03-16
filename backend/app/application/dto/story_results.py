@@ -33,6 +33,7 @@ class StoryActionResult:
 
 @dataclass(frozen=True)
 class StoryCardView:
+    story_id: str
     session_id: str
     title: str
     genre: str
@@ -41,6 +42,10 @@ class StoryCardView:
     last_scene_id: str | None
     updated_at: datetime
     choices_available: int
+    progress: int | None = None
+    cover_image: str | None = None
+    last_played_at: datetime | None = None
+    status: str | None = None
 
 
 @dataclass(frozen=True)

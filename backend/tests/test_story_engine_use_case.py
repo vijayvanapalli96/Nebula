@@ -20,6 +20,7 @@ from app.domain.models.story import (
     StorySceneLocation,
     StorySceneRecord,
     StoryTheme,
+    UserStoryRecord,
     utc_now,
 )
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
@@ -184,6 +185,27 @@ class FakeSceneRepository:
         ]
 
 
+class FakeUserStoryRepository:
+    def list_by_user_id(self, user_id: str) -> list[UserStoryRecord]:
+        return [
+            UserStoryRecord(
+                story_id="story-fs-1",
+                session_id=None,
+                title=f"{user_id} - Neon Debt",
+                genre="Cyberpunk",
+                character_name="Kira Voss",
+                archetype="Investigator",
+                last_scene_id="scene_004",
+                updated_at=utc_now(),
+                choices_available=3,
+                progress=70,
+                cover_image="https://example.com/story-fs-1.jpg",
+                last_played_at=utc_now(),
+                status="active",
+            )
+        ]
+
+
 def test_start_story_creates_session_and_opening_scene() -> None:
     repo = InMemoryStoryStateRepository()
     use_case = StoryEngineUseCase(repository=repo, generator=FakeGenerator())
@@ -332,3 +354,43 @@ def test_list_story_scenes_returns_scene_views() -> None:
     assert result[0].story_id == "story_123"
     assert result[0].location is not None
     assert result[0].location.name == "Skyline Rooftop"
+
+
+def test_list_active_stories_reads_user_story_repository_when_available() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        user_story_repository=FakeUserStoryRepository(),
+    )
+
+    result = use_case.list_active_stories(user_id="tmduUAxT4nNHLQDWmKsb9bf58342")
+
+    assert len(result) == 1
+    assert result[0].story_id == "story-fs-1"
+    assert result[0].session_id == "story-fs-1"
+    assert result[0].title.endswith("Neon Debt")
+    assert result[0].progress == 70
+    assert result[0].status == "active"
+
+
+def test_list_active_stories_falls_back_to_in_memory_sessions() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(repository=repo, generator=FakeGenerator())
+
+    start = asyncio.run(
+        use_case.start_story(
+            StartStoryCommand(
+                genre="Noir",
+                name="Mara Vale",
+                archetype="Reluctant Detective",
+                motivation="Find her missing brother",
+            )
+        )
+    )
+
+    result = use_case.list_active_stories(user_id="dev-user")
+
+    assert len(result) == 1
+    assert result[0].story_id == start.session_id
+    assert result[0].session_id == start.session_id
