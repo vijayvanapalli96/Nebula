@@ -1,86 +1,86 @@
-# Nebula Architecture Diagram
+# Nebula Backend Architecture
 
-This diagram is generated from the current code under `backend/app/*`, including existing video capabilities and the planned audio output path.
+Generated from current backend code (`backend/app/*`) on `main`.
 
-## 1) Whole Application Architecture (Current + Near-Term)
+## 1) Backend Runtime Architecture
 
 ```mermaid
 flowchart LR
-  %% Clients
-  U[End User]
-  FE[React Frontend<br/>Vite + Firebase Auth]
+  subgraph Clients
+    FE[Frontend Web App]
+    DEV[Developer or QA via Swagger]
+  end
 
-  %% Backend entrypoint
-  API[FastAPI App<br/>app/main.py]
-  AUTH[Auth Guard<br/>require_auth]
+  subgraph Backend[FastAPI Backend]
+    APP[app/main.py create_app]
+    AUTH[require_auth dependency]
+    R1[Story Router<br/>router.py]
+    R2[Creative Router<br/>creative_router.py]
+    R3[Video Router<br/>video_router.py]
+    R4[User Router<br/>user_router.py]
+  end
 
-  %% Routers
-  R1[Story Router<br/>/story/* /stories/*]
-  R2[Creative Router<br/>/v1/*]
-  R3[Video Router<br/>/v1/videos/*]
-  R4[User Router<br/>/api/users/create]
+  subgraph AppLayer[Application Use Cases]
+    U1[StoryEngineUseCase]
+    U2[GenerateStoryQuestionsUseCase]
+    U3[CreativeStorytellingUseCase]
+    U4[VideoGenerationUseCase]
+    U5[GetThemeUseCase]
+    U6[CreateStoryUseCase]
+  end
 
-  %% Use cases
-  UC1[StoryEngineUseCase]
-  UC2[GenerateStoryQuestionsUseCase]
-  UC3[CreativeStorytellingUseCase]
-  UC4[VideoGenerationUseCase]
+  subgraph Ports[Ports]
+    P1[StoryGeneratorPort]
+    P2[ThemedQuestionGeneratorPort]
+    P3[InterleavedGeneratorPort]
+    P4[VideoGeneratorPort]
+    P5[ImageStoragePort]
+  end
 
-  %% Ports / adapters
-  P1[StoryGeneratorPort]
-  P2[ThemedQuestionGeneratorPort]
-  P3[InterleavedGeneratorPort]
-  P4[VideoGeneratorPort]
-  P5[ImageStoragePort]
+  subgraph Adapters[Infrastructure Adapters]
+    A1[GeminiStoryGenerator]
+    A2[GeminiThemedQuestionGenerator]
+    A3[GeminiInterleavedGenerator]
+    A4[GeminiVideoGenerator]
+    A5[GcsImageStorage]
+    DB1[Firestore repositories]
+    DB2[In-memory repositories]
+  end
 
-  A1[GeminiStoryGenerator]
-  A2[GeminiThemedQuestionGenerator]
-  A3[GeminiInterleavedGenerator]
-  A4[GeminiVideoGenerator]
-  A5[GcsImageStorage]
+  subgraph External[External Systems]
+    FA[Firebase Auth]
+    FS[Google Firestore]
+    GCS[Google Cloud Storage]
+    GEM[Gemini API]
+    VEO[Veo model]
+    LFS[(generated_videos/*.mp4)]
+  end
 
-  %% Repositories
-  REP1[FirestoreStoryDocumentRepository]
-  REP2[FirestoreUserStoryRepository]
-  REP3[FirestoreStorySceneRepository]
-  REP4[FirestoreStoryThemeRepository]
-  REP5[FirestoreThemeDetailRepository]
-  REP6[InMemory Repositories<br/>fallback + creative/video stores]
+  FE -->|Bearer token| APP
+  DEV --> APP
+  APP --> AUTH
+  AUTH --> FA
+  APP --> R1
+  APP --> R2
+  APP --> R3
+  APP --> R4
 
-  %% External systems
-  FB[Firebase Auth]
-  FS[Google Firestore]
-  GCS[Google Cloud Storage]
-  GEM[Google Gemini APIs]
-  VEO[Veo Video Model]
-  LF[(Local Filesystem<br/>generated_videos/)]
-
-  U --> FE
-  FE -->|Bearer ID Token| API
-  FE -->|Sign-in| FB
-
-  API --> AUTH
-  AUTH -->|verify token| FB
-
-  API --> R1
-  API --> R2
-  API --> R3
-  API --> R4
-
-  R1 --> UC1
-  R1 --> UC2
-  R2 --> UC3
-  R3 --> UC4
+  R1 --> U1
+  R1 --> U2
+  U2 --> U5
+  U2 --> U6
+  R2 --> U3
+  R3 --> U4
   R4 --> FS
 
-  UC1 --> P1
-  UC2 --> P1
-  UC2 --> P2
-  UC3 --> P3
-  UC1 --> P4
-  UC4 --> P4
-  UC1 --> P5
-  UC2 --> P5
+  U1 --> P1
+  U1 --> P4
+  U1 --> P5
+  U2 --> P1
+  U2 --> P2
+  U2 --> P5
+  U3 --> P3
+  U4 --> P4
 
   P1 --> A1
   P2 --> A2
@@ -94,127 +94,141 @@ flowchart LR
   A4 --> VEO
   A5 --> GCS
 
-  UC1 --> REP1
-  UC1 --> REP2
-  UC1 --> REP3
-  UC1 --> REP4
-  UC2 --> REP1
-  UC2 --> REP5
-  UC4 --> REP6
-  UC3 --> REP6
-
-  REP1 --> FS
-  REP2 --> FS
-  REP3 --> FS
-  REP4 --> FS
-  REP5 --> FS
-  UC4 --> LF
+  U1 --> DB1
+  U2 --> DB1
+  U3 --> DB2
+  U4 --> DB2
+  DB1 --> FS
+  U4 --> LFS
 ```
 
-## 2) Backend Internal Layering (Hexagonal Style)
+## 2) Internal Layering (Hexagonal)
 
 ```mermaid
 flowchart TB
-  subgraph Presentation["Presentation Layer (FastAPI Routers + Schemas)"]
+  subgraph Presentation[Presentation Layer]
     PR1[router.py]
     PR2[creative_router.py]
     PR3[video_router.py]
     PR4[user_router.py]
-    SCH[schemas.py / creative_schemas.py / video_schemas.py]
+    SCH[schemas.py + creative_schemas.py + video_schemas.py]
+    DEP[dependencies.py DI wiring]
   end
 
-  subgraph Application["Application Layer (Use Cases + Ports + DTOs)"]
-    U1[StoryEngineUseCase]
-    U2[GenerateStoryQuestionsUseCase]
-    U3[CreativeStorytellingUseCase]
-    U4[VideoGenerationUseCase]
-    PORTS[Ports<br/>Story / ThemedQ / Interleaved / Video / Storage]
-    DTO[DTO Commands + Results]
+  subgraph Application[Application Layer]
+    UC1[story_engine.py]
+    UC2[generate_story_questions.py]
+    UC3[creative_storytelling.py]
+    UC4[video_generation.py]
+    UC5[get_theme.py]
+    UC6[create_story.py]
+    DTO[dto/* commands and results]
+    PORTS[ports/*]
   end
 
-  subgraph Domain["Domain Layer (Entities + Repository Interfaces)"]
-    ENT[Story / Theme / Composition / Video Models]
-    REPI[Repository Interfaces]
+  subgraph Domain[Domain Layer]
+    MODELS[domain/models/*]
+    REPOS[domain/repositories/* protocols]
   end
 
-  subgraph Infra["Infrastructure Layer (Adapters)"]
-    AI[Gemini + Veo Adapters]
-    STORE[GCS Storage Adapter]
-    DBR[Firestore Repositories]
-    MEM[InMemory Repositories]
-    FBA[Firebase Admin Init]
+  subgraph Infrastructure[Infrastructure Layer]
+    AI[infrastructure/ai/*]
+    FIRE[infrastructure/repositories/firestore_*]
+    MEM[infrastructure/repositories/in_memory_*]
+    STORE[infrastructure/storage/gcs_image_storage.py]
+    FBADMIN[infrastructure/firebase/admin.py]
   end
 
-  PR1 --> U1
-  PR1 --> U2
-  PR2 --> U3
-  PR3 --> U4
-  PR4 --> DBR
   SCH --> PR1
   SCH --> PR2
   SCH --> PR3
+  DEP --> PR1
+  DEP --> PR2
+  DEP --> PR3
+  DEP --> PR4
 
-  U1 --> PORTS
-  U2 --> PORTS
-  U3 --> PORTS
-  U4 --> PORTS
-  U1 --> REPI
-  U2 --> REPI
-  U3 --> REPI
-  U4 --> REPI
-  DTO --> U1
-  DTO --> U2
-  DTO --> U3
-  DTO --> U4
-  U1 --> ENT
-  U2 --> ENT
-  U3 --> ENT
-  U4 --> ENT
+  PR1 --> UC1
+  PR1 --> UC2
+  PR2 --> UC3
+  PR3 --> UC4
+
+  UC1 --> DTO
+  UC2 --> DTO
+  UC3 --> DTO
+  UC4 --> DTO
+
+  UC1 --> PORTS
+  UC2 --> PORTS
+  UC3 --> PORTS
+  UC4 --> PORTS
+  UC5 --> REPOS
+  UC6 --> REPOS
+
+  UC1 --> REPOS
+  UC2 --> REPOS
+  UC3 --> REPOS
+  UC4 --> REPOS
+  REPOS --> MODELS
 
   PORTS --> AI
   PORTS --> STORE
-  REPI --> DBR
-  REPI --> MEM
-  FBA --> DBR
+  REPOS --> FIRE
+  REPOS --> MEM
+  FBADMIN --> FIRE
 ```
 
-## 3) Media Output Pipeline (Image + Video Today, Audio Planned)
+## 3) Firestore Data Model Used by Story Endpoints
 
 ```mermaid
-flowchart LR
-  S[Story Opening / Composition Request]
-  ORCH[Use Case Orchestrator<br/>StoryEngine / CreativeStorytelling]
-  TRACK[MediaTaskTracker]
+flowchart TD
+  FS[(Firestore)]
 
-  IMG[Image Generation<br/>Gemini + GCS upload]
-  VID[Video Generation<br/>Veo + GCS/local storage]
-  AUD[Audio Generation (Planned)<br/>TTS/Audio model + storage]
+  FS --> USERS[users]
+  USERS --> UID["{uid}"]
+  UID --> USTORIES["stories/{story_id}"]
+  USTORIES --> Q["questions/{question_id}"]
+  USTORIES --> A["answers/{question_id}"]
+  USTORIES --> S["scenes/{scene_id}"]
 
-  META[Firestore Scene/Story Metadata<br/>imageUrl/videoUrl/audioUrl]
-  FE[Frontend Poll/Fetch<br/>/story/media + composition endpoints]
+  FS --> THEMES["themes/{theme_id}"]
 
-  S --> ORCH
-  ORCH --> TRACK
+  FS --> STORIES["stories/{storyId}"]
+  STORIES --> STORY_SCENES["scenes/{scene_id}"]
 
-  ORCH --> IMG
-  ORCH --> VID
-  ORCH -. planned .-> AUD
-
-  IMG --> META
-  VID --> META
-  AUD -. planned .-> META
-
-  META --> FE
+  USTORIES --> META["story metadata fields<br/>status, theme*, rootSceneId, branchDepth,<br/>characterName, customInput, updatedAt"]
 ```
 
-## Notes
+## 4) Sequence: `GET /story/{user_id}/{story_id}`
 
-- Current code already supports:
-  - Story generation and branching metadata
-  - Question generation with generated option images
-  - Video job generation (`/v1/videos`)
-  - Interleaved composition with `audio` and `video` part types represented in domain models (audio currently queued/placeholder in generator path)
-- Current persistence mix:
-  - Firestore for story/theme/user data (when configured)
-  - In-memory repositories as fallback or for creative/video store in current implementation
-  - Local filesystem output for video jobs under `generated_videos/`
+This endpoint returns story metadata plus raw `questions`, `answers`, and `scenes`.
+
+```mermaid
+sequenceDiagram
+  participant FE as Frontend
+  participant API as router.py
+  participant AUTH as require_auth
+  participant UC as StoryEngineUseCase
+  participant USERREP as UserStoryRepository
+  participant DOCREP as StoryDocumentRepository
+  participant FS as Firestore
+
+  FE->>API: GET /story/{user_id}/{story_id}
+  API->>AUTH: verify Bearer token
+  AUTH-->>API: token_uid
+  API->>API: enforce token_uid == user_id
+  API->>UC: get_story_detail(user_id, story_id)
+  UC->>USERREP: get_by_story_id(user_id, story_id)
+  USERREP->>FS: read users/{uid}/stories/{story_id}
+  FS-->>USERREP: story card record
+  UC->>DOCREP: get_story_payload(user_id, story_id)
+  DOCREP->>FS: read subcollections questions/answers/scenes
+  FS-->>DOCREP: raw payload docs
+  UC-->>API: StoryDetailView + payload
+  API-->>FE: StoryDetailResponse
+```
+
+## Current Media Status
+
+- Story flow supports image and video asset URLs per choice (`/story/media/{story_id}/{scene_id}`).
+- Dedicated video generation exists at `/v1/videos/*` and writes output to `generated_videos/`.
+- Creative composition supports requested modalities including `audio` and `video`; current interleaved generator emits queued placeholders for modalities not directly generated in-line.
