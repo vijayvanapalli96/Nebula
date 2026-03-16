@@ -5,11 +5,28 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
+from app.application.dto.story_results import (
+    GenerateStoryQuestionsResult,
+    OpeningSceneResult,
+    QuestionsResult,
+    StoryActionResult,
+    StoryCardView,
+    StoryDetailView,
+    StorySceneAssetRefsView,
+    StorySceneGenerationStatusView,
+    StorySceneLocationView,
+    StorySceneView,
+    StoryStartResult,
+    StoryThemeView,
+)
 from app.application.errors import SessionNotFoundError
 from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
-from app.presentation.api.dependencies import get_use_case, require_auth
+from app.presentation.api.dependencies import (
+    get_generate_story_questions_use_case,
+    get_use_case,
+    require_auth,
+)
 
 
 def _scene(scene_id: str, chapter: int) -> Scene:
@@ -31,6 +48,10 @@ def _scene(scene_id: str, chapter: int) -> Scene:
 
 
 class FakeUseCase:
+    def __init__(self) -> None:
+        self.last_user_id: str | None = None
+        self.last_story_detail_request: tuple[str, str] | None = None
+
     async def generate_questions(self, command):  # noqa: ANN001
         return QuestionsResult(
             theme=command.theme,
@@ -119,9 +140,11 @@ class FakeUseCase:
             raise SessionNotFoundError("Session 'missing' not found.")
         return StoryActionResult(session_id=command.session_id, scene=_scene("scene-2", 2))
 
-    def list_active_stories(self) -> list[StoryCardView]:
+    def list_active_stories(self, user_id: str) -> list[StoryCardView]:
+        self.last_user_id = user_id
         return [
             StoryCardView(
+                story_id="story-1",
                 session_id="session-1",
                 title="Mara Vale: Noir Arc",
                 genre="Noir",
@@ -130,6 +153,9 @@ class FakeUseCase:
                 last_scene_id="scene-2",
                 updated_at=datetime.now(UTC),
                 choices_available=3,
+                progress=45,
+                cover_image="https://example.com/story-cover.png",
+                status="active",
             )
         ]
 
@@ -145,13 +171,110 @@ class FakeUseCase:
             )
         ]
 
+    def list_story_scenes(self, story_id: str) -> list[StorySceneView]:
+        return [
+            StorySceneView(
+                scene_id="scene_001",
+                story_id=story_id,
+                chapter_number=1,
+                scene_number=1,
+                title="Crimson Echoes",
+                description="The neon-soaked city pulses beneath you.",
+                short_summary="Kira overlooks the city and spots three possible paths.",
+                full_narrative="The city hums with danger below the rooftop edge.",
+                parent_scene_id=None,
+                selected_choice_id_from_parent=None,
+                path_depth=0,
+                is_root=True,
+                is_current_checkpoint=True,
+                is_ending=False,
+                ending_type=None,
+                scene_type="opening",
+                mood="dark",
+                location=StorySceneLocationView(
+                    name="Skyline Rooftop",
+                    location_type="city_rooftop",
+                ),
+                characters_present=["kira_voss"],
+                asset_refs=StorySceneAssetRefsView(
+                    hero_image_id="asset_hero_001",
+                    scene_image_id="asset_scene_001",
+                    scene_video_id="asset_video_001",
+                    scene_audio_id=None,
+                ),
+                generation_status=StorySceneGenerationStatusView(
+                    text="completed",
+                    image="completed",
+                    video="completed",
+                ),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        ]
+
+    def get_story_detail(self, user_id: str, story_id: str) -> StoryDetailView | None:
+        self.last_story_detail_request = (user_id, story_id)
+        if story_id == "missing":
+            return None
+        return StoryDetailView(
+            story_id=story_id,
+            user_id=user_id,
+            session_id=story_id,
+            title="The Last Detective",
+            genre="crime",
+            character_name="Kira Voss",
+            archetype="Investigator",
+            last_scene_id="scene_010",
+            updated_at=datetime.now(UTC),
+            choices_available=4,
+            progress=65,
+            cover_image="https://example.com/last-detective.png",
+            last_played_at=datetime.now(UTC),
+            status="questions_generated",
+            theme_id="theme-crime",
+            theme_title="The Last Detective",
+            theme_category="crime",
+            theme_description="A neon mystery unfolds in the rain.",
+            question_count=4,
+            questions_generated=[
+                "What drives the hero?",
+                "Who can be trusted?",
+            ],
+            created_at=datetime.now(UTC),
+        )
+
+
+class FakeGenerateStoryQuestionsUseCase:
+    async def execute(self, user_id: str, theme_id: str) -> GenerateStoryQuestionsResult:
+        return GenerateStoryQuestionsResult(
+            story_id="story-generated-1",
+            theme=theme_id,
+            questions=[
+                InitialQuestion(
+                    question_id="q_1",
+                    question="What color is the sky?",
+                    options=[
+                        QuestionOption(text="Red", image_prompt="red sky", image_uri="https://storage.googleapis.com/red-sky.png"),
+                        QuestionOption(text="Blue", image_prompt="blue sky", image_uri="https://storage.googleapis.com/blue-sky.png"),
+                        QuestionOption(text="Green", image_prompt="green sky", image_uri="https://storage.googleapis.com/green-sky.png"),
+                        QuestionOption(text="Black", image_prompt="black sky", image_uri="https://storage.googleapis.com/black-sky.png"),
+                    ],
+                )
+            ],
+        )
+
 
 @pytest.fixture
 def client() -> TestClient:
     app = create_app()
-    app.dependency_overrides[get_use_case] = lambda: FakeUseCase()
-    app.dependency_overrides[require_auth] = lambda: "test-uid"
+    fake_use_case = FakeUseCase()
+    fake_questions_use_case = FakeGenerateStoryQuestionsUseCase()
+    app.dependency_overrides[get_use_case] = lambda: fake_use_case
+    app.dependency_overrides[get_generate_story_questions_use_case] = lambda: fake_questions_use_case
+    app.dependency_overrides[require_auth] = lambda: "test-user"
     with TestClient(app) as test_client:
+        test_client.app.state.fake_use_case = fake_use_case
+        test_client.app.state.fake_questions_use_case = fake_questions_use_case
         yield test_client
     app.dependency_overrides.clear()
 
@@ -192,8 +315,13 @@ def test_list_stories_route_returns_cards(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 1
+    assert body[0]["story_id"] == "story-1"
     assert body[0]["session_id"] == "session-1"
     assert body[0]["choices_available"] == 3
+    assert body[0]["progress"] == 45
+    assert body[0]["cover_image"] == "https://example.com/story-cover.png"
+    assert body[0]["status"] == "active"
+    assert client.app.state.fake_use_case.last_user_id == "test-user"
 
 
 def test_list_story_themes_route_returns_themes(client: TestClient) -> None:
@@ -205,19 +333,59 @@ def test_list_story_themes_route_returns_themes(client: TestClient) -> None:
     assert body[0]["title"] == "Noir Detective"
 
 
+def test_list_story_scenes_route_returns_scenes(client: TestClient) -> None:
+    response = client.get("/stories/story_123/scenes")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["scene_id"] == "scene_001"
+    assert body[0]["story_id"] == "story_123"
+    assert body[0]["location"]["name"] == "Skyline Rooftop"
+
+
+def test_story_detail_route_returns_full_story_payload(client: TestClient) -> None:
+    response = client.get("/story/test-user/story-1")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["story_id"] == "story-1"
+    assert body["user_id"] == "test-user"
+    assert body["title"] == "The Last Detective"
+    assert body["theme_id"] == "theme-crime"
+    assert body["theme_description"]
+    assert body["question_count"] == 4
+    assert len(body["questions_generated"]) == 2
+    assert client.app.state.fake_use_case.last_story_detail_request == ("test-user", "story-1")
+
+
+def test_story_detail_route_rejects_uid_mismatch(client: TestClient) -> None:
+    client.app.dependency_overrides[require_auth] = lambda: "another-user"
+    response = client.get("/story/test-user/story-1")
+    assert response.status_code == 403
+    assert "does not match" in response.json()["detail"].lower()
+    client.app.dependency_overrides[require_auth] = lambda: "test-user"
+
+
+def test_story_detail_route_returns_404_when_story_missing(client: TestClient) -> None:
+    response = client.get("/story/test-user/missing")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
 def test_generate_questions_route_returns_questions(client: TestClient) -> None:
     response = client.post(
         "/story/questions",
-        json={"theme": "Cyberpunk Noir"},
+        json={"theme_id": "genre-noir"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     body = response.json()
-    assert body["theme"] == "Cyberpunk Noir"
+    assert body["story_id"] == "story-generated-1"
+    assert body["theme"] == "genre-noir"
     assert "media_request_id" not in body
-    assert len(body["questions"]) == 4
+    assert len(body["questions"]) == 1
     for q in body["questions"]:
         assert "question" in q
+        assert q["question_id"] == "q_1"
         assert len(q["options"]) == 4
         for opt in q["options"]:
             assert "text" in opt
@@ -230,7 +398,7 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
 def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:
     response = client.post(
         "/story/questions",
-        json={"theme": ""},
+        json={"theme_id": ""},
     )
     assert response.status_code == 422
 

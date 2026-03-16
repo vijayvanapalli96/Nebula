@@ -6,15 +6,29 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
+from app.application.dto.story_results import (
+    OpeningSceneResult,
+    QuestionsResult,
+    StoryActionResult,
+    StoryCardView,
+    StoryDetailView,
+    StorySceneAssetRefsView,
+    StorySceneGenerationStatusView,
+    StorySceneLocationView,
+    StorySceneView,
+    StoryStartResult,
+    StoryThemeView,
+)
 from app.application.errors import InvalidChoiceError, SessionNotFoundError
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
 from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
-from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
+from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState, UserStoryRecord
+from app.domain.repositories.story_scene_repository import StorySceneRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
+from app.domain.repositories.user_story_repository import UserStoryRepository
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +41,8 @@ class StoryEngineUseCase:
         image_storage: ImageStoragePort | None = None,
         video_generator: VideoGeneratorPort | None = None,
         theme_repository: StoryThemeRepository | None = None,
+        scene_repository: StorySceneRepository | None = None,
+        user_story_repository: UserStoryRepository | None = None,
         media_tracker: MediaTaskTracker | None = None,
     ) -> None:
         self._repository = repository
@@ -34,6 +50,8 @@ class StoryEngineUseCase:
         self._image_storage = image_storage
         self._video_generator = video_generator
         self._theme_repository = theme_repository
+        self._scene_repository = scene_repository
+        self._user_story_repository = user_story_repository
         self._media_tracker = media_tracker
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
@@ -264,13 +282,54 @@ class StoryEngineUseCase:
 
         return StoryActionResult(session_id=state.session_id, scene=scene)
 
-    def list_active_stories(self) -> list[StoryCardView]:
+    def list_active_stories(self, user_id: str) -> list[StoryCardView]:
+        resolved_user_id = user_id.strip()
+        if self._user_story_repository is not None and resolved_user_id:
+            records = self._user_story_repository.list_by_user_id(resolved_user_id)
+            return [self._to_story_card_view_from_record(record) for record in records]
+
         sessions = sorted(
             self._repository.list_all(),
             key=lambda item: item.updated_at,
             reverse=True,
         )
         return [self._to_story_card_view(state=story) for story in sessions]
+
+    def get_story_detail(self, user_id: str, story_id: str) -> StoryDetailView | None:
+        resolved_user_id = user_id.strip()
+        resolved_story_id = story_id.strip()
+
+        if self._user_story_repository is not None and resolved_user_id and resolved_story_id:
+            record = self._user_story_repository.get_by_user_id_and_story_id(
+                user_id=resolved_user_id,
+                story_id=resolved_story_id,
+            )
+            if record is not None:
+                return self._to_story_detail_view_from_record(record)
+
+        # Fallback for local/dev runs that only have in-memory sessions.
+        fallback_state = self._repository.get(resolved_story_id)
+        if fallback_state is None:
+            return None
+        card = self._to_story_card_view(fallback_state)
+        return StoryDetailView(
+            story_id=card.story_id,
+            user_id=resolved_user_id or "dev-user",
+            session_id=card.session_id,
+            title=card.title,
+            genre=card.genre,
+            character_name=card.character_name,
+            archetype=card.archetype,
+            last_scene_id=card.last_scene_id,
+            updated_at=card.updated_at,
+            choices_available=card.choices_available,
+            progress=card.progress,
+            cover_image=card.cover_image,
+            last_played_at=card.last_played_at,
+            status=card.status,
+            created_at=fallback_state.created_at,
+            theme_category=card.genre,
+        )
 
     def list_story_themes(self) -> list[StoryThemeView]:
         if self._theme_repository is None:
@@ -288,9 +347,60 @@ class StoryEngineUseCase:
             for theme in self._theme_repository.list_active()
         ]
 
+    def list_story_scenes(self, story_id: str) -> list[StorySceneView]:
+        if self._scene_repository is None:
+            return []
+
+        records = self._scene_repository.list_by_story_id(story_id.strip())
+        return [
+            StorySceneView(
+                scene_id=item.scene_id,
+                story_id=item.story_id,
+                chapter_number=item.chapter_number,
+                scene_number=item.scene_number,
+                title=item.title,
+                description=item.description,
+                short_summary=item.short_summary,
+                full_narrative=item.full_narrative,
+                parent_scene_id=item.parent_scene_id,
+                selected_choice_id_from_parent=item.selected_choice_id_from_parent,
+                path_depth=item.path_depth,
+                is_root=item.is_root,
+                is_current_checkpoint=item.is_current_checkpoint,
+                is_ending=item.is_ending,
+                ending_type=item.ending_type,
+                scene_type=item.scene_type,
+                mood=item.mood,
+                location=(
+                    StorySceneLocationView(
+                        name=item.location.name,
+                        location_type=item.location.location_type,
+                    )
+                    if item.location is not None
+                    else None
+                ),
+                characters_present=item.characters_present,
+                asset_refs=StorySceneAssetRefsView(
+                    hero_image_id=item.asset_refs.hero_image_id,
+                    scene_image_id=item.asset_refs.scene_image_id,
+                    scene_video_id=item.asset_refs.scene_video_id,
+                    scene_audio_id=item.asset_refs.scene_audio_id,
+                ),
+                generation_status=StorySceneGenerationStatusView(
+                    text=item.generation_status.text,
+                    image=item.generation_status.image,
+                    video=item.generation_status.video,
+                ),
+                created_at=item.created_at,
+                updated_at=item.updated_at,
+            )
+            for item in records
+        ]
+
     @staticmethod
     def _to_story_card_view(state: StoryState) -> StoryCardView:
         return StoryCardView(
+            story_id=state.session_id,
             session_id=state.session_id,
             title=f"{state.character_name}: {state.genre.title()} Arc",
             genre=state.genre,
@@ -299,6 +409,52 @@ class StoryEngineUseCase:
             last_scene_id=state.current_scene.metadata.scene_id if state.current_scene else None,
             updated_at=state.updated_at,
             choices_available=len(state.current_scene.choices) if state.current_scene else 0,
+        )
+
+    @staticmethod
+    def _to_story_card_view_from_record(record: UserStoryRecord) -> StoryCardView:
+        session_id = (record.session_id or record.story_id).strip()
+        return StoryCardView(
+            story_id=record.story_id,
+            session_id=session_id,
+            title=record.title,
+            genre=record.genre,
+            character_name=record.character_name,
+            archetype=record.archetype,
+            last_scene_id=record.last_scene_id,
+            updated_at=record.updated_at,
+            choices_available=record.choices_available,
+            progress=record.progress,
+            cover_image=record.cover_image,
+            last_played_at=record.last_played_at,
+            status=record.status,
+        )
+
+    @staticmethod
+    def _to_story_detail_view_from_record(record: UserStoryRecord) -> StoryDetailView:
+        session_id = (record.session_id or record.story_id).strip()
+        return StoryDetailView(
+            story_id=record.story_id,
+            user_id=record.user_id,
+            session_id=session_id,
+            title=record.title,
+            genre=record.genre,
+            character_name=record.character_name,
+            archetype=record.archetype,
+            last_scene_id=record.last_scene_id,
+            updated_at=record.updated_at,
+            choices_available=record.choices_available,
+            progress=record.progress,
+            cover_image=record.cover_image,
+            last_played_at=record.last_played_at,
+            status=record.status,
+            theme_id=record.theme_id,
+            theme_title=record.theme_title,
+            theme_category=record.theme_category,
+            theme_description=record.theme_description,
+            question_count=record.question_count,
+            questions_generated=record.questions_generated,
+            created_at=record.created_at,
         )
 
     @staticmethod

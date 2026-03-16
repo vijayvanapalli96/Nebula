@@ -100,6 +100,10 @@ GEMINI_MODEL=gemini-2.5-flash
 FIREBASE_PROJECT_ID=disclosure-nlu
 FIREBASE_CREDENTIALS_PATH=/absolute/path/to/firebase-service-account.json
 FIREBASE_THEMES_COLLECTION=themes
+FIREBASE_STORIES_COLLECTION=stories
+FIREBASE_SCENES_SUBCOLLECTION=scenes
+FIREBASE_USERS_COLLECTION=users
+FIREBASE_USER_STORIES_SUBCOLLECTION=stories
 ```
 
 ## Run The Service
@@ -187,7 +191,23 @@ Request:
 
 ### `GET /stories/me`
 
-Returns active in-memory story cards for the landing page.
+Returns the authenticated user's stories from Firestore path:
+`/{FIREBASE_USERS_COLLECTION}/{uid}/{FIREBASE_USER_STORIES_SUBCOLLECTION}`.
+If Firestore is not configured, falls back to in-memory sessions.
+
+### `GET /story/{user_id}/{story_id}`
+
+Returns one full story document for the specified user/story from Firestore path:
+`/{FIREBASE_USERS_COLLECTION}/{user_id}/{FIREBASE_USER_STORIES_SUBCOLLECTION}/{story_id}`.
+Requires auth and enforces `token_uid == user_id`.
+
+Response includes card fields plus story metadata fields:
+
+- `story_id`, `user_id`, `session_id`, `title`, `genre`
+- `character_name`, `archetype`, `last_scene_id`
+- `choices_available`, `progress`, `cover_image`, `last_played_at`
+- `status`, `theme_id`, `theme_title`, `theme_category`, `theme_description`
+- `question_count`, `questions_generated`, `created_at`, `updated_at`
 
 ### `GET /story/themes`
 
@@ -195,6 +215,13 @@ Returns active story themes used by the frontend genre carousel.
 If `FIREBASE_PROJECT_ID` is configured, themes are read from Firestore collection
 `FIREBASE_THEMES_COLLECTION` (default: `themes`); otherwise in-memory defaults are returned.
 For local runs, set `FIREBASE_CREDENTIALS_PATH` to a Firebase service account key file.
+
+### `GET /stories/{storyId}/scenes`
+
+Returns saved scenes for a story from Firestore path:
+`/{FIREBASE_STORIES_COLLECTION}/{storyId}/{FIREBASE_SCENES_SUBCOLLECTION}`.
+The response includes graph/navigation fields (`parent_scene_id`, `path_depth`,
+`is_current_checkpoint`) plus scene content and asset references.
 
 ### `GET /health`
 
@@ -250,6 +277,8 @@ python scripts/firebase/seed_story_themes.py \
 Schema reference:
 
 - `scripts/firebase/STORY_THEMES_SCHEMA.md`
+- `scripts/firebase/STORY_SCENES_SCHEMA.md`
+- `scripts/firebase/USER_STORIES_SCHEMA.md`
 
 ## Implementation Notes
 
