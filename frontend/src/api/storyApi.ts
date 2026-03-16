@@ -199,25 +199,32 @@ export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<S
   return res.json() as Promise<Scene>;
 }
 
+export interface ChoiceMediaItem {
+  choice_id: string;
+  image_url: string | null;
+  video_url: string | null;
+}
+
 /**
- * GET /story/media/{mediaRequestId}
- * Returns asset_key → GCS object path (or null if still generating).
+ * GET /story/media/{storyId}/{sceneId}
+ * Returns live image/video GCS paths for every choice in a scene (reads from Firestore).
  * Convert paths to URLs with gcsPathToUrl() from utils/gcs.ts.
  */
-export async function fetchMediaStatus(
-  mediaRequestId: string,
-): Promise<Record<string, string | null>> {
-  const res = await fetch(`${BASE_URL}/story/media/${mediaRequestId}`, {
+export async function fetchSceneMedia(
+  storyId: string,
+  sceneId: string,
+): Promise<ChoiceMediaItem[]> {
+  const res = await fetch(`${BASE_URL}/story/media/${storyId}/${sceneId}`, {
     method: 'GET',
     headers: await getAuthHeaders(),
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch media status: ${res.status} ${res.statusText}`);
+    throw new Error(`Failed to fetch scene media: ${res.status} ${res.statusText}`);
   }
 
-  const data = (await res.json()) as { request_id: string; assets: Record<string, string | null> };
-  return data.assets;
+  const data = (await res.json()) as { story_id: string; scene_id: string; choices: ChoiceMediaItem[] };
+  return data.choices;
 }
 
 /** GET /stories/me — returns all stories owned by the current user. */

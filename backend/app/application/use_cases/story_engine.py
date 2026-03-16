@@ -297,24 +297,24 @@ class StoryEngineUseCase:
         """Background coroutine: generate all opening-scene media in parallel.
 
         GCS path convention:
-          {user_id}/story/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png
-          {user_id}/story/{story_id}/scene/{scene_id}/choice/{choice_id}/video.mp4
-          {user_id}/story/{story_id}/scene/{scene_id}/scene_video.mp4
+          {user_id}/stories/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png
+          {user_id}/stories/{story_id}/scene/{scene_id}/choice/{choice_id}/video.mp4
+          {user_id}/stories/{story_id}/scene/{scene_id}/scene_video.mp4
         After each upload, the Firestore scene document's matching choice is updated.
         """
 
         def _choice_path(choice_id: str, filename: str) -> str:
             if user_id and story_id:
-                return f"{user_id}/story/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
+                return f"{user_id}/stories/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
             if story_id:
-                return f"story/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
+                return f"stories/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
             return f"choice-{choice_id}/{uuid4()!s}-{filename}"
 
         def _scene_path(filename: str) -> str:
             if user_id and story_id:
-                return f"{user_id}/story/{story_id}/scene/{scene_id}/{filename}"
+                return f"{user_id}/stories/{story_id}/scene/{scene_id}/{filename}"
             if story_id:
-                return f"story/{story_id}/scene/{scene_id}/{filename}"
+                return f"stories/{story_id}/scene/{scene_id}/{filename}"
             return f"opening-scene/{uuid4()!s}-{filename}"
 
         def _write_choice_media(

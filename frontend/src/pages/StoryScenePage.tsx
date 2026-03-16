@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -18,31 +18,27 @@ const StoryScenePage: React.FC = () => {
     }
   }, [currentScene, navigate]);
 
-  // Poll /story/media/{id} every 4 s until all choice media paths arrive
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    const requestId = currentScene?.media_request_id;
-    if (!requestId) return;
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
 
-    pollingRef.current = setInterval(async () => {
-      try {
-        const assets = await fetchMediaStatus(requestId);
-        updateChoiceMedia(assets);
-        // Stop once every asset has a value (no nulls left)
-        const allReady = Object.values(assets).every((v) => v !== null);
-        if (allReady && pollingRef.current) {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-        }
-      } catch {
-        // Silently ignore transient polling errors
+  const startMediaPolling = async () => {
+    if (!currentScene?.story_id || mediaLoading || mediaLoaded) return;
+    setMediaLoading(true);
+    try {
+      const items = await fetchSceneMedia(currentScene.story_id, 'scene_001');
+      const assets: Record<string, string | null> = {};
+      for (const item of items) {
+        assets[`choice_${item.choice_id}_image`] = item.image_url ?? null;
+        assets[`choice_${item.choice_id}_video`] = item.video_url ?? null;
       }
-    }, 4000);
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [currentScene?.media_request_id, updateChoiceMedia]);
+      updateChoiceMedia(assets);
+      setMediaLoaded(true);
+    } catch {
+      // Silently ignore errors — user can retry
+    } finally {
+      setMediaLoading(false);
+    }
+  };
 
   if (!currentScene) return null;
 
