@@ -14,7 +14,7 @@ from app.domain.models.composition import (
     Project,
 )
 from app.main import create_app
-from app.presentation.api.dependencies import get_creative_use_case
+from app.presentation.api.dependencies import get_creative_use_case, require_auth
 
 
 def _sample_composition() -> Composition:
@@ -144,6 +144,7 @@ class FakeCreativeUseCase:
 def client() -> TestClient:
     app = create_app()
     app.dependency_overrides[get_creative_use_case] = lambda: FakeCreativeUseCase()
+    app.dependency_overrides[require_auth] = lambda: "test-user"
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -223,4 +224,3 @@ def test_asset_export_and_usage_endpoints(client: TestClient) -> None:
     usage_response = client.get("/v1/usage")
     assert usage_response.status_code == 200
     assert usage_response.json()["usage"]["prompt_tokens"] == 100
-

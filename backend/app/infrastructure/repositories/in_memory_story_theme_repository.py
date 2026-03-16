@@ -70,3 +70,19 @@ class InMemoryStoryThemeRepository(StoryThemeRepository):
             [theme for theme in self._themes if theme.is_active],
             key=lambda theme: theme.sort_order,
         )
+
+    def update_image(self, theme_id: str, image_url: str) -> None:
+        for idx, theme in enumerate(self._themes):
+            if theme.theme_id == theme_id:
+                # StoryTheme is frozen, so replace the whole object
+                self._themes[idx] = StoryTheme(
+                    theme_id=theme.theme_id,
+                    title=theme.title,
+                    tagline=theme.tagline,
+                    description=theme.description,
+                    image=image_url,
+                    accent_color=theme.accent_color,
+                    is_active=theme.is_active,
+                    sort_order=theme.sort_order,
+                )
+                return

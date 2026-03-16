@@ -7,7 +7,22 @@ import pytest
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryTheme
+from app.domain.models.story import (
+    InitialQuestion,
+    OpeningChoice,
+    OpeningScene,
+    QuestionOption,
+    Scene,
+    SceneChoice,
+    SceneMetadata,
+    StorySceneAssetRefs,
+    StorySceneGenerationStatus,
+    StorySceneLocation,
+    StorySceneRecord,
+    StoryTheme,
+    UserStoryRecord,
+    utc_now,
+)
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -125,6 +140,109 @@ class FakeThemeRepository:
                 sort_order=10,
             )
         ]
+
+
+class FakeSceneRepository:
+    def list_by_story_id(self, story_id: str) -> list[StorySceneRecord]:
+        return [
+            StorySceneRecord(
+                scene_id="scene_001",
+                story_id=story_id,
+                chapter_number=1,
+                scene_number=1,
+                title="Crimson Echoes",
+                description="The neon-soaked city pulses beneath you.",
+                short_summary="Kira overlooks the city and spots three possible paths.",
+                full_narrative="The city hums with danger below the rooftop edge.",
+                parent_scene_id=None,
+                selected_choice_id_from_parent=None,
+                path_depth=0,
+                is_root=True,
+                is_current_checkpoint=True,
+                is_ending=False,
+                ending_type=None,
+                scene_type="opening",
+                mood="dark",
+                location=StorySceneLocation(
+                    name="Skyline Rooftop",
+                    location_type="city_rooftop",
+                ),
+                characters_present=["kira_voss"],
+                asset_refs=StorySceneAssetRefs(
+                    hero_image_id="asset_hero_001",
+                    scene_image_id="asset_scene_001",
+                    scene_video_id="asset_video_001",
+                    scene_audio_id=None,
+                ),
+                generation_status=StorySceneGenerationStatus(
+                    text="completed",
+                    image="completed",
+                    video="completed",
+                ),
+                created_at=utc_now(),
+                updated_at=utc_now(),
+            )
+        ]
+
+
+class FakeUserStoryRepository:
+    def list_by_user_id(self, user_id: str) -> list[UserStoryRecord]:
+        return [
+            UserStoryRecord(
+                story_id="story-fs-1",
+                user_id=user_id,
+                session_id=None,
+                title=f"{user_id} - Neon Debt",
+                genre="Cyberpunk",
+                character_name="Kira Voss",
+                archetype="Investigator",
+                last_scene_id="scene_004",
+                updated_at=utc_now(),
+                choices_available=3,
+                progress=70,
+                cover_image="https://example.com/story-fs-1.jpg",
+                last_played_at=utc_now(),
+                status="active",
+                theme_id="theme-cyberpunk",
+                theme_title="Neon Debt",
+                theme_category="Cyberpunk",
+                theme_description="Corporate espionage in a flooded megacity.",
+                question_count=4,
+                questions_generated=["Q1", "Q2"],
+                created_at=utc_now(),
+            )
+        ]
+
+    def get_by_user_id_and_story_id(
+        self,
+        user_id: str,
+        story_id: str,
+    ) -> UserStoryRecord | None:
+        if story_id == "missing":
+            return None
+        return UserStoryRecord(
+            story_id=story_id,
+            user_id=user_id,
+            session_id=story_id,
+            title="Neon Debt",
+            genre="Cyberpunk",
+            character_name="Kira Voss",
+            archetype="Investigator",
+            last_scene_id="scene_004",
+            updated_at=utc_now(),
+            choices_available=3,
+            progress=70,
+            cover_image="https://example.com/story-fs-1.jpg",
+            last_played_at=utc_now(),
+            status="active",
+            theme_id="theme-cyberpunk",
+            theme_title="Neon Debt",
+            theme_category="Cyberpunk",
+            theme_description="Corporate espionage in a flooded megacity.",
+            question_count=4,
+            questions_generated=["Q1", "Q2"],
+            created_at=utc_now(),
+        )
 
 
 def test_start_story_creates_session_and_opening_scene() -> None:
@@ -258,3 +376,97 @@ def test_list_story_themes_returns_active_theme_views() -> None:
     assert len(result) == 1
     assert result[0].id == "genre-noir"
     assert result[0].title == "Noir Detective"
+
+
+def test_list_story_scenes_returns_scene_views() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        scene_repository=FakeSceneRepository(),
+    )
+
+    result = use_case.list_story_scenes(story_id="story_123")
+
+    assert len(result) == 1
+    assert result[0].scene_id == "scene_001"
+    assert result[0].story_id == "story_123"
+    assert result[0].location is not None
+    assert result[0].location.name == "Skyline Rooftop"
+
+
+def test_list_active_stories_reads_user_story_repository_when_available() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        user_story_repository=FakeUserStoryRepository(),
+    )
+
+    result = use_case.list_active_stories(user_id="tmduUAxT4nNHLQDWmKsb9bf58342")
+
+    assert len(result) == 1
+    assert result[0].story_id == "story-fs-1"
+    assert result[0].session_id == "story-fs-1"
+    assert result[0].title.endswith("Neon Debt")
+    assert result[0].progress == 70
+    assert result[0].status == "active"
+
+
+def test_list_active_stories_falls_back_to_in_memory_sessions() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(repository=repo, generator=FakeGenerator())
+
+    start = asyncio.run(
+        use_case.start_story(
+            StartStoryCommand(
+                genre="Noir",
+                name="Mara Vale",
+                archetype="Reluctant Detective",
+                motivation="Find her missing brother",
+            )
+        )
+    )
+
+    result = use_case.list_active_stories(user_id="dev-user")
+
+    assert len(result) == 1
+    assert result[0].story_id == start.session_id
+    assert result[0].session_id == start.session_id
+
+
+def test_get_story_detail_returns_firestore_story_when_available() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        user_story_repository=FakeUserStoryRepository(),
+    )
+
+    result = use_case.get_story_detail(
+        user_id="tmduUAxT4nNHLQDWmKsb9bf58342",
+        story_id="story-fs-1",
+    )
+
+    assert result is not None
+    assert result.story_id == "story-fs-1"
+    assert result.user_id == "tmduUAxT4nNHLQDWmKsb9bf58342"
+    assert result.theme_id == "theme-cyberpunk"
+    assert result.question_count == 4
+    assert result.questions_generated == ["Q1", "Q2"]
+
+
+def test_get_story_detail_returns_none_when_story_missing() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        user_story_repository=FakeUserStoryRepository(),
+    )
+
+    result = use_case.get_story_detail(
+        user_id="tmduUAxT4nNHLQDWmKsb9bf58342",
+        story_id="missing",
+    )
+
+    assert result is None
