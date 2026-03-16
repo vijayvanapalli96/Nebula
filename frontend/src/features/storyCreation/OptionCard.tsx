@@ -12,6 +12,7 @@ interface OptionCardProps {
 
 const OptionCard: React.FC<OptionCardProps> = ({ option, selected, onClick, delay = 0 }) => {
   const [hovered, setHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   return (
     <motion.button
@@ -26,16 +27,27 @@ const OptionCard: React.FC<OptionCardProps> = ({ option, selected, onClick, dela
       style={{ aspectRatio: '4/3' }}
       aria-pressed={selected}
     >
-      {/* ── Image ── */}
-      <motion.img
-        src={option.image}
-        alt={option.label}
-        loading="lazy"
-        draggable={false}
-        className="absolute inset-0 w-full h-full object-cover"
-        animate={{ scale: hovered || selected ? 1.08 : 1 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-      />
+      {/* ── Image (or gradient fallback if GCS URL fails) ── */}
+      {!imgError ? (
+        <motion.img
+          src={option.image}
+          alt={option.label}
+          loading="lazy"
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-cover"
+          animate={{ scale: hovered || selected ? 1.08 : 1 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(60,20,80,0.9) 0%, rgba(20,30,70,0.9) 60%, rgba(10,10,30,0.95) 100%)',
+          }}
+        />
+      )}
 
       {/* ── Base gradient scrim ── */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />

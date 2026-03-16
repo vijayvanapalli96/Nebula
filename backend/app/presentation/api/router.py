@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.application.errors import InvalidChoiceError, SessionNotFoundError, StoryGenerationError
+from app.application.errors import InvalidChoiceError, SessionNotFoundError, StoryGenerationError, ThemeNotFoundError
 from app.application.services.media_task_tracker import MediaTaskTracker, get_media_tracker
+from app.application.use_cases.generate_story_questions import GenerateStoryQuestionsUseCase
 from app.application.use_cases.story_engine import StoryEngineUseCase
 from app.core.settings import get_settings
-from app.presentation.api.dependencies import get_use_case, require_auth
+from app.presentation.api.dependencies import (
+    get_generate_story_questions_use_case,
+    get_use_case,
+    require_auth,
+)
 from app.presentation.api.schemas import (
-    GenerateQuestionsRequest,
     GenerateQuestionsResponse,
+    GenerateStoryQuestionsRequest,
     MediaResponse,
     OpeningSceneRequest,
     OpeningSceneResponse,
@@ -23,11 +28,10 @@ from app.presentation.api.schemas import (
     to_action_response,
     to_opening_scene_command,
     to_opening_scene_response,
-    to_questions_command,
-    to_questions_response,
     to_start_command,
     to_start_response,
     to_story_card_response,
+    to_story_questions_response,
     to_story_theme_response,
 )
 
@@ -42,16 +46,32 @@ async def health() -> dict[str, str]:
 @router.post(
     "/story/questions",
     response_model=GenerateQuestionsResponse,
-    status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_auth)],
+    status_code=status.HTTP_201_CREATED,
 )
 async def generate_questions(
-    request: GenerateQuestionsRequest,
-    use_case: StoryEngineUseCase = Depends(get_use_case),
+    request: GenerateStoryQuestionsRequest,
+    user_id: str = Depends(require_auth),
+    use_case: GenerateStoryQuestionsUseCase = Depends(get_generate_story_questions_use_case),
 ) -> GenerateQuestionsResponse:
+    """
+    Full story-question pipeline:
+      1. Verify Firebase token → extract user UID
+      2. Fetch theme from Firestore by theme_id
+      3. Create story document (status = "initializing")
+      4. Generate 4 questions via Gemini LLM
+      5. Generate per-option images & upload to GCS
+      6. Persist questions under users/{uid}/stories/{story_id}/questions/
+      7. Update story status → "questions_generated"
+      8. Return questions with story_id to the client
+    """
     try:
-        result = await use_case.generate_questions(to_questions_command(request))
-        return to_questions_response(result)
+        result = await use_case.execute(user_id=user_id, theme_id=request.theme_id)
+        return to_story_questions_response(result)
+    except ThemeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     except StoryGenerationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
