@@ -1,6 +1,7 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { fetchStoryDetail } from '../../api/storyApi';
 import type { UserStory } from '../../types/story';
 
 interface StoryCardProps {
@@ -54,32 +55,51 @@ function coverGradient(storyId: string): string {
 
 const StoryCard: React.FC<StoryCardProps> = ({ story }) => {
   const navigate = useNavigate();
+  const [isOpening, setIsOpening] = useState(false);
   const progress = story.progress ?? 0;
   const badge = statusBadge(story.status);
   const timeLabel = formatRelativeTime(story.last_played_at ?? story.updated_at);
 
+  const openStory = useCallback(async () => {
+    if (isOpening) return;
+
+    setIsOpening(true);
+    try {
+      const storyDetail = await fetchStoryDetail(story.story_id);
+      navigate(`/story/${story.story_id}`, { state: { storyDetail } });
+    } catch (error) {
+      console.error('Failed to load story detail before navigation.', error);
+      navigate(`/story/${story.story_id}`);
+    } finally {
+      setIsOpening(false);
+    }
+  }, [isOpening, navigate, story.story_id]);
+
   const handleClick = useCallback(() => {
-    navigate(`/story/${story.story_id}`);
-  }, [navigate, story.story_id]);
+    void openStory();
+  }, [openStory]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        navigate(`/story/${story.story_id}`);
+        void openStory();
       }
     },
-    [navigate, story.story_id],
+    [openStory],
   );
 
   return (
     <motion.article
       role="button"
       tabIndex={0}
+      aria-busy={isOpening}
       aria-label={`Continue story: ${story.title}. Genre: ${story.genre}. Progress: ${progress}%.`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className="relative flex-shrink-0 w-60 sm:w-72 rounded-2xl overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-500 card-shadow group"
+      className={`relative flex-shrink-0 w-60 sm:w-72 rounded-2xl overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-500 card-shadow group ${
+        isOpening ? 'opacity-80 pointer-events-none' : ''
+      }`}
       whileHover={{ scale: 1.05, y: -6 }}
       whileTap={{ scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
