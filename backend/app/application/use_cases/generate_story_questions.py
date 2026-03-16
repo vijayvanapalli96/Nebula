@@ -73,7 +73,10 @@ class GenerateStoryQuestionsUseCase:
                 StoredQuestionOption(
                     text=opt.text,
                     image_prompt=opt.image_prompt,
-                    image_url=opt.image_uri or "",
+                    # Store the raw GCS path in Firestore — never expires.
+                    # The signed URL (opt.image_uri) is returned in the API response
+                    # and is fresh at generation time (valid for 7 days).
+                    image_url=opt.gcs_path or "",
                     gcs_path=opt.gcs_path or "",
                 )
                 for opt in question.options

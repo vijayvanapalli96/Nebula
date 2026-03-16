@@ -1,13 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 import { useStorySessionStore } from '../store/storySessionStore';
 import SceneDisplay from '../features/story/SceneDisplay';
+import { fetchSceneMedia } from '../api/storyApi';
+import { gcsPathToUrl } from '../utils/gcs';
 
 const StoryScenePage: React.FC = () => {
   const navigate = useNavigate();
-  const { currentScene } = useStorySessionStore();
+  const { currentScene, updateChoiceMedia } = useStorySessionStore();
 
   // Guard: if no scene loaded, go back to dashboard
   useEffect(() => {
@@ -15,6 +17,28 @@ const StoryScenePage: React.FC = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [currentScene, navigate]);
+
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
+
+  const startMediaPolling = async () => {
+    if (!currentScene?.story_id || mediaLoading || mediaLoaded) return;
+    setMediaLoading(true);
+    try {
+      const items = await fetchSceneMedia(currentScene.story_id, 'scene_001');
+      const assets: Record<string, string | null> = {};
+      for (const item of items) {
+        assets[`choice_${item.choice_id}_image`] = item.image_url ?? null;
+        assets[`choice_${item.choice_id}_video`] = item.video_url ?? null;
+      }
+      updateChoiceMedia(assets);
+      setMediaLoaded(true);
+    } catch {
+      // Silently ignore errors — user can retry
+    } finally {
+      setMediaLoading(false);
+    }
+  };
 
   if (!currentScene) return null;
 
@@ -103,17 +127,41 @@ const StoryScenePage: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.2, duration: 0.5 }}
             >
-              <p
-                className="text-xs font-semibold uppercase tracking-widest mb-4"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                Your Choices
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <p
+                  className="text-xs font-semibold uppercase tracking-widest"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Your Choices
+                </p>
+                {!mediaLoaded && (
+                  <button
+                    onClick={startMediaPolling}
+                    disabled={mediaLoading}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity"
+                    style={{
+                      background: 'rgba(139,92,246,0.15)',
+                      border: '1px solid rgba(139,92,246,0.3)',
+                      color: '#a78bfa',
+                      opacity: mediaLoading ? 0.6 : 1,
+                    }}
+                  >
+                    {mediaLoading ? (
+                      <>
+                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="14 6" />
+                        </svg>
+                        Generating…
+                      </>
+                    ) : 'Load Images'}
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {currentScene.choices.map((choice, i) => (
                   <motion.div
                     key={choice.choice_id}
-                    className="rounded-xl px-4 py-3 text-sm"
+                    className="rounded-xl overflow-hidden text-sm"
                     style={{
                       backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-color)',
@@ -122,20 +170,31 @@ const StoryScenePage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 1.3 + i * 0.07 }}
                   >
-                    <p
-                      className="font-semibold leading-snug"
-                      style={{ color: 'var(--text-primary)' }}
-                    >
-                      {choice.choice_text}
-                    </p>
-                    {choice.direction_hint && (
-                      <p
-                        className="text-xs mt-1"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {choice.direction_hint}
-                      </p>
+                    {/* Choice image thumbnail — shown once GCS path arrives via polling */}
+                    {gcsPathToUrl(choice.image_url) && (
+                      <img
+                        src={gcsPathToUrl(choice.image_url)!}
+                        alt={choice.choice_text}
+                        className="w-full h-24 object-cover"
+                        loading="lazy"
+                      />
                     )}
+                    <div className="px-4 py-3">
+                      <p
+                        className="font-semibold leading-snug"
+                        style={{ color: 'var(--text-primary)' }}
+                      >
+                        {choice.choice_text}
+                      </p>
+                      {choice.direction_hint && (
+                        <p
+                          className="text-xs mt-1"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {choice.direction_hint}
+                        </p>
+                      )}
+                    </div>
                   </motion.div>
                 ))}
               </div>

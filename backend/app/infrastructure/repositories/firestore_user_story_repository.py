@@ -113,6 +113,7 @@ def _to_user_story_record(
         payload,
         "coverImage",
         "cover_image",
+        "themeImageUrl",
         "thumbnailUrl",
         "heroImageUrl",
     ) or None

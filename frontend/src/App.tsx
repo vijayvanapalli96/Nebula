@@ -16,6 +16,7 @@ const ComingSoonPage      = lazy(() => import("./pages/ComingSoonPage"));
 const SettingsPage        = lazy(() => import("./pages/SettingsPage"));
 const ThemeLoadingPage    = lazy(() => import("./pages/ThemeLoadingPage"));
 const ExploreThemesPage   = lazy(() => import("./pages/ExploreThemesPage"));
+const MyStoriesPage       = lazy(() => import("./pages/MyStoriesPage"));
 
 const Spinner: React.FC = () => (
   <div
@@ -59,6 +60,9 @@ const App: React.FC = () => (
         <Route path="/dashboard/stories"      element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
         <Route path="/dashboard/achievements" element={<ProtectedRoute><ComingSoonPage /></ProtectedRoute>} />
         <Route path="/dashboard/settings"     element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+        {/* -- My Stories -- */}
+        <Route path="/my-stories" element={<ProtectedRoute><MyStoriesPage /></ProtectedRoute>} />
 
         {/* -- Protected: Story creation -- */}
         <Route path="/story/create"     element={<ProtectedRoute><StoryCreationPage /></ProtectedRoute>} />

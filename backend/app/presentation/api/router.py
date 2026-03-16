@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.application.errors import InvalidChoiceError, SessionNotFoundError, StoryGenerationError, ThemeNotFoundError
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
-from app.application.services.media_task_tracker import MediaTaskTracker, get_media_tracker
 from app.application.use_cases.generate_story_questions import GenerateStoryQuestionsUseCase
 from app.application.use_cases.story_engine import StoryEngineUseCase
 from app.core.settings import get_settings
@@ -19,11 +18,12 @@ from app.presentation.api.dependencies import (
     require_auth,
 )
 from app.presentation.api.schemas import (
+    ChoiceMediaItem,
     GenerateQuestionsResponse,
     GenerateStoryQuestionsRequest,
-    MediaResponse,
     OpeningSceneRequest,
     OpeningSceneResponse,
+    SceneMediaResponse,
     StoryActionRequest,
     StoryActionResponse,
     StoryCardResponse,
@@ -99,17 +99,27 @@ async def generate_opening_scene(
     user_id: str = Depends(require_auth),
     use_case: StoryEngineUseCase = Depends(get_use_case),
 ) -> OpeningSceneResponse:
+    if not request.story_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="story_id is required. Make sure /story/questions completed successfully before calling /story/opening.",
+        )
+    if not request.theme_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="theme_id is required.",
+        )
     try:
         result = await use_case.generate_opening_scene(
             command=to_opening_scene_command(request),
             user_id=user_id,
         )
-        media_request_id = use_case.fire_opening_scene_media(
+        use_case.fire_opening_scene_media(
             result.scene,
             story_id=result.story_id,
             user_id=user_id,
         )
-        return to_opening_scene_response(result, media_request_id=media_request_id)
+        return to_opening_scene_response(result)
     except StoryGenerationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -118,24 +128,39 @@ async def generate_opening_scene(
 
 
 @router.get(
-    "/story/media/{media_request_id}",
-    response_model=MediaResponse,
+    "/story/media/{story_id}/{scene_id}",
+    response_model=SceneMediaResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_media(
-    media_request_id: str,
-    tracker: MediaTaskTracker = Depends(get_media_tracker),
-) -> MediaResponse:
-    """Return generated media URIs for a request. null values mean still generating."""
-    result = tracker.get_status(media_request_id)
-    if result is None:
+async def get_scene_media(
+    story_id: str,
+    scene_id: str,
+    user_id: str = Depends(require_auth),
+    use_case: StoryEngineUseCase = Depends(get_use_case),
+) -> SceneMediaResponse:
+    """Return current image/video GCS paths for all choices in a scene (live from Firestore)."""
+    choices = use_case.get_scene_choice_media(
+        user_id=user_id,
+        story_id=story_id,
+        scene_id=scene_id,
+    )
+    if choices is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Media request '{media_request_id}' not found",
+            detail=f"Scene '{scene_id}' not found for story '{story_id}'.",
         )
-    # Flatten to simple {asset_key: uri_or_null}
-    assets = {k: v.get("uri") for k, v in result["assets"].items()}
-    return MediaResponse(request_id=media_request_id, assets=assets)
+    return SceneMediaResponse(
+        story_id=story_id,
+        scene_id=scene_id,
+        choices=[
+            ChoiceMediaItem(
+                choice_id=c["choice_id"],
+                image_url=c.get("image_url"),
+                video_url=c.get("video_url"),
+            )
+            for c in choices
+        ],
+    )
 
 
 @router.post(

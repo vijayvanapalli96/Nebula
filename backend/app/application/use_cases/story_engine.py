@@ -195,7 +195,6 @@ class StoryEngineUseCase:
                         "depth": 0,
                         "parentSceneId": None,   # ← backwards link (null = root)
                         "nextSceneIds": [],       # ← forward links; populated as children are created
-                        "videoPrompt": scene.video_prompt,
                         "choices": [
                             {
                                 "choiceId": c.choice_id,
@@ -220,8 +219,9 @@ class StoryEngineUseCase:
                     user_id, command.story_id,
                     "opening_scene_ready",
                     {
-                        "rootSceneId": "scene_001",  # entry point of the tree
-                        "branchDepth": 0,             # deepest explored depth so far
+                        "rootSceneId": "scene_001",           # entry point of the tree
+                        "branchDepth": 0,                      # deepest explored depth so far
+                        "characterName": command.character_name.strip(),
                     },
                 )
             except Exception:
@@ -243,7 +243,7 @@ class StoryEngineUseCase:
     ) -> str | None:
         """Register opening-scene media as a request and kick off background generation.
 
-        GCS paths: story/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png|video.mp4
+        GCS paths: {user_id}/story/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png|video.mp4
         After each asset upload completes, the matching Firestore choice is updated with its URL.
         Returns ``media_request_id`` (or ``None`` if storage is unavailable).
         """
@@ -252,15 +252,16 @@ class StoryEngineUseCase:
 
         assets: list[AssetState] = []
 
-        # Scene-level video
-        if scene.video_prompt and self._video_generator is not None:
-            assets.append(AssetState(
-                asset_key="scene_video",
-                asset_type="video",
-                prompt=scene.video_prompt,
-            ))
+        # Scene-level video — disabled
+        # scene_video_prompt = scene.video_prompt or getattr(scene, "scene_description", "")
+        # if scene_video_prompt and self._video_generator is not None:
+        #     assets.append(AssetState(
+        #         asset_key="scene_video",
+        #         asset_type="video",
+        #         prompt=scene_video_prompt,
+        #     ))
 
-        # Per-choice assets
+        # Per-choice assets — fall back to image_prompt for video if video_prompt is empty
         for choice in scene.choices:
             if choice.image_prompt:
                 assets.append(AssetState(
@@ -268,11 +269,12 @@ class StoryEngineUseCase:
                     asset_type="image",
                     prompt=choice.image_prompt,
                 ))
-            if choice.video_prompt and self._video_generator is not None:
+            choice_video_prompt = choice.video_prompt or choice.image_prompt
+            if choice_video_prompt and self._video_generator is not None:
                 assets.append(AssetState(
                     asset_key=f"choice_{choice.choice_id}_video",
                     asset_type="video",
-                    prompt=choice.video_prompt,
+                    prompt=choice_video_prompt,
                 ))
 
         if not assets:
@@ -295,20 +297,24 @@ class StoryEngineUseCase:
         """Background coroutine: generate all opening-scene media in parallel.
 
         GCS path convention:
-          story/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png
-          story/{story_id}/scene/{scene_id}/choice/{choice_id}/video.mp4
-          story/{story_id}/scene/{scene_id}/scene_video.mp4
+          {user_id}/stories/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png
+          {user_id}/stories/{story_id}/scene/{scene_id}/choice/{choice_id}/video.mp4
+          {user_id}/stories/{story_id}/scene/{scene_id}/scene_video.mp4
         After each upload, the Firestore scene document's matching choice is updated.
         """
 
         def _choice_path(choice_id: str, filename: str) -> str:
+            if user_id and story_id:
+                return f"{user_id}/stories/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
             if story_id:
-                return f"story/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
+                return f"stories/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
             return f"choice-{choice_id}/{uuid4()!s}-{filename}"
 
         def _scene_path(filename: str) -> str:
+            if user_id and story_id:
+                return f"{user_id}/stories/{story_id}/scene/{scene_id}/{filename}"
             if story_id:
-                return f"story/{story_id}/scene/{scene_id}/{filename}"
+                return f"stories/{story_id}/scene/{scene_id}/{filename}"
             return f"opening-scene/{uuid4()!s}-{filename}"
 
         def _write_choice_media(
@@ -329,10 +335,10 @@ class StoryEngineUseCase:
         async def _gen_image(asset_key: str, prompt: str, path: str, choice_id: str = "") -> None:
             try:
                 image_bytes = await self._generator.generate_option_image(prompt)
-                uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
-                self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+                await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, path)  # store GCS path
                 if choice_id:
-                    _write_choice_media(choice_id, image_url=uri)
+                    _write_choice_media(choice_id, image_url=path)  # persist GCS path to Firestore
             except Exception as exc:
                 self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
@@ -345,19 +351,21 @@ class StoryEngineUseCase:
                     aspect_ratio="16:9",
                 )
                 result = await self._video_generator.generate(req)  # type: ignore[union-attr]
-                uri = await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
-                self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+                await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, path)  # store GCS path
                 if choice_id:
-                    _write_choice_media(choice_id, video_url=uri)
+                    _write_choice_media(choice_id, video_url=path)  # persist GCS path to Firestore
             except Exception as exc:
                 self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
         tasks: list = []
 
-        if scene.video_prompt and self._video_generator is not None:
-            tasks.append(_gen_video(
-                "scene_video", scene.video_prompt, _scene_path("scene_video.mp4"),
-            ))
+        # Scene-level video — disabled
+        # scene_video_prompt = scene.video_prompt or getattr(scene, "scene_description", "")
+        # if scene_video_prompt and self._video_generator is not None:
+        #     tasks.append(_gen_video(
+        #         "scene_video", scene_video_prompt, _scene_path("scene_video.mp4"),
+        #     ))
 
         for choice in scene.choices:
             if choice.image_prompt:
@@ -367,10 +375,12 @@ class StoryEngineUseCase:
                     _choice_path(choice.choice_id, "image.png"),
                     choice.choice_id,
                 ))
-            if choice.video_prompt and self._video_generator is not None:
+            # Fall back to image_prompt as video prompt if LLM omitted video_prompt
+            choice_video_prompt = choice.video_prompt or choice.image_prompt
+            if choice_video_prompt and self._video_generator is not None:
                 tasks.append(_gen_video(
                     f"choice_{choice.choice_id}_video",
-                    choice.video_prompt,
+                    choice_video_prompt,
                     _choice_path(choice.choice_id, "video.mp4"),
                     choice.choice_id,
                 ))
@@ -458,7 +468,33 @@ class StoryEngineUseCase:
         )
         return [self._to_story_card_view(state=story) for story in sessions]
 
+    def get_scene_choice_media(
+        self, user_id: str, story_id: str, scene_id: str
+    ) -> list[dict] | None:
+        """Return current imageUrl / videoUrl for every choice in a scene.
+
+        Reads live from Firestore so values reflect generation progress.
+        Returns None if the scene document does not exist.
+        Each item: {"choice_id": str, "image_url": str|None, "video_url": str|None}
+        """
+        if self._story_doc_repository is None:
+            return None
+        scene_data = self._story_doc_repository.get_scene(
+            user_id.strip(), story_id.strip(), scene_id.strip()
+        )
+        if scene_data is None:
+            return None
+        result = []
+        for c in scene_data.get("choices", []):
+            result.append({
+                "choice_id": c.get("choiceId", ""),
+                "image_url": c.get("imageUrl"),
+                "video_url": c.get("videoUrl"),
+            })
+        return result
+
     def get_story_detail(self, user_id: str, story_id: str) -> StoryDetailView | None:
+        """Return full story detail view for a given user and story."""
         resolved_user_id = user_id.strip()
         resolved_story_id = story_id.strip()
 
@@ -591,6 +627,9 @@ class StoryEngineUseCase:
             cover_image=record.cover_image,
             last_played_at=record.last_played_at,
             status=record.status,
+            theme_id=record.theme_id,
+            theme_title=record.theme_title,
+            theme_description=record.theme_description,
         )
 
     @staticmethod

@@ -32,6 +32,7 @@ const StoryCreationPage: React.FC = () => {
     setAnswer,
     setCustomInput,
     setLoading,
+    setSelectedGenre,
     setStoryId,
     nextQuestion,
     previousQuestion,
@@ -48,6 +49,9 @@ const StoryCreationPage: React.FC = () => {
     const controller = new AbortController();
     const themeId = genre?.id ?? selectedGenre?.id ?? '';
     reset();
+    // Re-pin the genre immediately after reset so StoryGeneratingPage
+    // can always read selectedGenre from the store (reset() wipes it).
+    if (genre) setSelectedGenre(genre);
     setLoading(true);
     fetchStoryQuestions(themeId, controller.signal)
       .then(({ questions, storyId }) => {

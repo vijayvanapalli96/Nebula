@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStoryThemeStore } from '../store/storyThemeStore';
+import { useStoryStore } from '../store/storyStore';
 
 const HINTS = [
   'Exploring narrative universes…',
@@ -83,6 +84,7 @@ const Particle: React.FC<{ i: number }> = ({ i }) => {
 const ThemeLoadingPage: React.FC = () => {
   const navigate = useNavigate();
   const { fetchThemes, loading, error } = useStoryThemeStore();
+  const { fetchUserStories } = useStoryStore();
   const [hintIndex, setHintIndex] = useState(0);
 
   // Rotate hints every 2 s
@@ -91,9 +93,9 @@ const ThemeLoadingPage: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Kick off theme fetch on mount
+  // Kick off both fetches in parallel on mount
   useEffect(() => {
-    fetchThemes()
+    Promise.all([fetchThemes(), fetchUserStories().catch(() => { /* stories failure is non-fatal */ })])
       .then(() => navigate('/dashboard', { replace: true }))
       .catch(() => {
         // error is already written to the store by fetchThemes;
@@ -218,7 +220,7 @@ const ThemeLoadingPage: React.FC = () => {
             <p>{error}</p>
             <button
               onClick={() =>
-                fetchThemes()
+                Promise.all([fetchThemes(), fetchUserStories().catch(() => {})])
                   .then(() => navigate('/dashboard', { replace: true }))
                   .catch(() => {})
               }

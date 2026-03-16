@@ -24,6 +24,7 @@ class CreateStoryUseCase:
             theme_title=theme.title,
             theme_category=theme.category,
             theme_description=theme.description,
+            theme_image_url=theme.image_url,
             status="initializing",
             created_at=now,
             updated_at=now,

@@ -33,6 +33,7 @@ class StoryDocument:
     theme_title: str
     theme_category: str
     theme_description: str
+    theme_image_url: str = ""
     status: str = "initializing"
     created_at: datetime = field(default_factory=_utc_now)
     updated_at: datetime = field(default_factory=_utc_now)

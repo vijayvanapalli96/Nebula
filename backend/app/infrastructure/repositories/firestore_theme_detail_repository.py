@@ -48,11 +48,16 @@ class FirestoreThemeDetailRepository:
 
         is_active = bool(payload.get("active", payload.get("is_active", True)))
 
+        image_url = str(
+            payload.get("thumbnailUrl", payload.get("image", payload.get("heroImageUrl", ""))) or ""
+        ).strip()
+
         return ThemeDetail(
             theme_id=resolved_id,
             title=str(payload.get("title", "")).strip(),
             category=str(payload.get("category", "")).strip(),
             description=str(payload.get("description", "")).strip(),
+            image_url=image_url,
             default_tone_tags=tone_tags,
             prompt_hints=hints,
             is_active=is_active,

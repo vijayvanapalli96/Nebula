@@ -1,6 +1,6 @@
 import { auth } from '../lib/firebase';
 import type { Question, QuestionOption } from '../store/storyCreationStore';
-import type { Genre } from '../types/story';
+import type { Genre, UserStory } from '../types/story';
 import type { Scene } from '../store/storySessionStore';
 
 export interface StoryQuestionsResponse {
@@ -197,4 +197,46 @@ export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<S
   }
 
   return res.json() as Promise<Scene>;
+}
+
+export interface ChoiceMediaItem {
+  choice_id: string;
+  image_url: string | null;
+  video_url: string | null;
+}
+
+/**
+ * GET /story/media/{storyId}/{sceneId}
+ * Returns live image/video GCS paths for every choice in a scene (reads from Firestore).
+ * Convert paths to URLs with gcsPathToUrl() from utils/gcs.ts.
+ */
+export async function fetchSceneMedia(
+  storyId: string,
+  sceneId: string,
+): Promise<ChoiceMediaItem[]> {
+  const res = await fetch(`${BASE_URL}/story/media/${storyId}/${sceneId}`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch scene media: ${res.status} ${res.statusText}`);
+  }
+
+  const data = (await res.json()) as { story_id: string; scene_id: string; choices: ChoiceMediaItem[] };
+  return data.choices;
+}
+
+/** GET /stories/me — returns all stories owned by the current user. */
+export async function fetchUserStories(): Promise<UserStory[]> {
+  const res = await fetch(`${BASE_URL}/stories/me`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch stories: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json() as Promise<UserStory[]>;
 }

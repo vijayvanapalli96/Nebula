@@ -54,6 +54,9 @@ class StoryCardView:
     cover_image: str | None = None
     last_played_at: datetime | None = None
     status: str | None = None
+    theme_id: str | None = None
+    theme_title: str | None = None
+    theme_description: str | None = None
 
 
 @dataclass(frozen=True)
