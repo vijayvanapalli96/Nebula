@@ -199,6 +199,8 @@ export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<S
   return res.json() as Promise<Scene>;
 }
 
+// ── Scene media polling ──────────────────────────────────────────────────────
+
 export interface ChoiceMediaItem {
   choice_id: string;
   image_url: string | null;
@@ -258,4 +260,49 @@ export async function fetchStoryDetail(storyId: string, userId?: string): Promis
   }
 
   return res.json() as Promise<StoryDetail>;
+}
+
+// ── Continuation scene ───────────────────────────────────────────────────────
+
+export interface ContinuationSceneRequest {
+  story_id: string;
+  previous_scene_id: string;
+  current_scene_id: string;
+  choice_id: string;
+}
+
+export interface ContinuationSceneResponse {
+  story_id: string;
+  scene_id: string;
+  parent_scene_id: string;
+  depth: number;
+  scene_title: string;
+  scene_description: string;
+  summary: string;
+  video_prompt: string;
+  choices: Array<{
+    choice_id: string;
+    choice_text: string;
+    direction_hint: string;
+    image_prompt: string;
+    video_prompt: string;
+  }>;
+  media_request_id: string | null;
+}
+
+/** POST /story/scene/next — generates a continuation scene from the player's choice. */
+export async function fetchContinuationScene(
+  payload: ContinuationSceneRequest,
+): Promise<ContinuationSceneResponse> {
+  const res = await fetch(`${BASE_URL}/story/scene/next`, {
+    method: 'POST',
+    headers: await getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to generate continuation scene: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json() as Promise<ContinuationSceneResponse>;
 }

@@ -245,6 +245,7 @@ class OpeningSceneResponse(BaseModel):
     character_name: str
     scene_title: str
     scene_description: str
+    summary: str = Field(default="", description="Short recap of this scene for context chaining.")
     video_prompt: str = Field(default="", description="Prompt for the opening scene video.")
     choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
 
@@ -504,6 +505,7 @@ def to_opening_scene_response(
         character_name=result.character_name,
         scene_title=result.scene.scene_title,
         scene_description=result.scene.scene_description,
+        summary=result.scene.summary,
         video_prompt=result.scene.video_prompt,
         choices=[
             OpeningChoiceResponse(

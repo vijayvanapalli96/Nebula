@@ -192,10 +192,14 @@ class StoryEngineUseCase:
                         "sceneId": "scene_001",
                         "title": scene.scene_title,
                         "description": scene.scene_description,
+                        "summary": scene.summary,
                         "isRoot": True,
                         "depth": 0,
                         "parentSceneId": None,   # ← backwards link (null = root)
                         "nextSceneIds": [],       # ← forward links; populated as children are created
+                        "characterName": command.character_name.strip(),
+                        "themeId": command.theme_id,
+                        "videoPrompt": scene.video_prompt,
                         "choices": [
                             {
                                 "choiceId": c.choice_id,
@@ -459,31 +463,35 @@ class StoryEngineUseCase:
             description="",
         )
         if self._get_theme_use_case is not None:
-            # Read theme_id from the story doc or current scene metadata
-            story_doc = self._story_doc_repository.get_scene(
-                user_id, command.story_id, command.current_scene_id,
-            )
-            # The story document itself may hold theme_id; fall back gracefully
+            # Read theme_id from the story-level document (set during story creation)
+            _theme_id = ""
             try:
-                # Try reading story-level doc for theme info
-                from google.cloud import firestore as _fs
-                _story_ref = self._story_doc_repository._firestore_client.collection(  # type: ignore[attr-defined]
-                    "users"
-                ).document(user_id).collection("stories").document(command.story_id)
-                _story_snap = _story_ref.get()
-                if _story_snap.exists:
-                    _story_data = _story_snap.to_dict()
-                    _theme_id = (_story_data or {}).get("themeId", "")
-                    if _theme_id:
-                        fetched = self._get_theme_use_case.execute(_theme_id)
-                        theme_detail = fetched
+                if self._story_doc_repository is not None:
+                    # First try the scene doc itself (we now store themeId on each scene)
+                    _theme_id = current_scene_data.get("themeId", "")
+                    if not _theme_id:
+                        # Fall back to the root scene which always has themeId
+                        root_scene = self._story_doc_repository.get_scene(
+                            user_id, command.story_id, "scene_001",
+                        )
+                        if root_scene:
+                            _theme_id = root_scene.get("themeId", "")
             except Exception:
-                logger.warning("Could not fetch theme for continuation; using minimal ThemeDetail")
+                logger.warning("Could not read themeId from scene docs")
+
+            if _theme_id:
+                try:
+                    fetched = self._get_theme_use_case.execute(_theme_id)
+                    theme_detail = fetched
+                except Exception:
+                    logger.warning("Could not fetch theme %s for continuation", _theme_id)
 
         # 5. Generate continuation scene via LLM
+        # Read character name from scene doc (stored since opening) or fall back
+        character_name = current_scene_data.get("characterName", "Hero")
         scene = await self._generator.generate_continuation_scene(
             theme=theme_detail,
-            character_name=current_scene_data.get("characterName", "Hero"),
+            character_name=character_name,
             scene_summaries=scene_summaries,
             current_scene_description=current_scene_data.get("description", ""),
             selected_choice_text=selected_choice.get("choiceText", ""),
@@ -496,6 +504,7 @@ class StoryEngineUseCase:
         new_depth = parent_depth + 1
 
         # 7. Persist the new scene
+        # Carry forward characterName and themeId so future continuations can access them
         try:
             self._story_doc_repository.store_scene(
                 user_id,
@@ -510,6 +519,8 @@ class StoryEngineUseCase:
                     "depth": new_depth,
                     "parentSceneId": command.current_scene_id,
                     "nextSceneIds": [],
+                    "characterName": character_name,
+                    "themeId": theme_detail.theme_id,
                     "videoPrompt": scene.video_prompt,
                     "choices": [
                         {

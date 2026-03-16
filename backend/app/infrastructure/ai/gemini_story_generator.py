@@ -72,6 +72,7 @@ class _OpeningChoicePayload(BaseModel):
 class _OpeningScenePayload(BaseModel):
     scene_title: str
     scene_description: str
+    summary: str = ""
     video_prompt: str = ""
     choices: list[_OpeningChoicePayload] = Field(..., min_length=2, max_length=4)
 
@@ -250,6 +251,7 @@ class GeminiStoryGenerator(StoryGeneratorPort):
             scene_title=scene_payload.scene_title,
             scene_description=scene_payload.scene_description,
             video_prompt=scene_payload.video_prompt,
+            summary=scene_payload.summary,
             choices=[
                 OpeningChoice(
                     choice_id=c.choice_id,

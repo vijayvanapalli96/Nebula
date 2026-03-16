@@ -30,7 +30,12 @@ const AnimatedDescription: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-const SceneDisplay: React.FC<SceneDisplayProps> = ({ scene }) => (
+const SceneDisplay: React.FC<SceneDisplayProps> = ({ scene }) => {
+  const sceneLabel = scene.depth !== undefined && scene.depth > 0
+    ? `Scene ${scene.depth + 1}`
+    : 'Opening Scene';
+
+  return (
   <div className="w-full max-w-3xl mx-auto flex flex-col gap-6 px-4">
     {/* ── Scene label badge ── */}
     <motion.div
@@ -47,7 +52,7 @@ const SceneDisplay: React.FC<SceneDisplayProps> = ({ scene }) => (
           border: '1px solid rgba(139,92,246,0.3)',
         }}
       >
-        Opening Scene
+        {sceneLabel}
       </span>
       {scene.theme && (
         <span
@@ -91,6 +96,7 @@ const SceneDisplay: React.FC<SceneDisplayProps> = ({ scene }) => (
     {/* ── Description ── */}
     <AnimatedDescription text={scene.scene_description} />
   </div>
-);
+  );
+};
 
 export default SceneDisplay;

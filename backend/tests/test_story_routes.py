@@ -95,9 +95,10 @@ class FakeUseCase:
             ],
         )
 
-    async def generate_opening_scene(self, command):  # noqa: ANN001
+    async def generate_opening_scene(self, command, user_id=""):  # noqa: ANN001
         return OpeningSceneResult(
-            theme=command.theme,
+            story_id=command.story_id,
+            theme=command.theme_id,
             character_name=command.character_name,
             scene=OpeningScene(
                 scene_title="Crimson Echoes",
@@ -129,7 +130,7 @@ class FakeUseCase:
             ),
         )
 
-    def fire_opening_scene_media(self, scene):  # noqa: ANN001
+    def fire_opening_scene_media(self, scene, story_id="", user_id="", scene_id="scene_001"):  # noqa: ANN001
         return None
 
     async def start_story(self, command):  # noqa: ANN001
@@ -431,18 +432,19 @@ def test_opening_scene_route_returns_scene(client: TestClient) -> None:
     response = client.post(
         "/story/opening",
         json={
-            "theme": "Cyberpunk Noir",
+            "story_id": "story_test_1",
+            "theme_id": "cyberpunk-noir",
             "character_name": "Kira Voss",
             "answers": [
-                {"question": "What color is the sky?", "answer": "Crimson"},
-                {"question": "What drives the hero?", "answer": "Revenge"},
+                {"question_id": "q1", "question": "What color is the sky?", "selected_option": "Crimson", "image_url": ""},
+                {"question_id": "q2", "question": "What drives the hero?", "selected_option": "Revenge", "image_url": ""},
             ],
         },
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["theme"] == "Cyberpunk Noir"
+    assert body["theme"] == "cyberpunk-noir"
     assert body["character_name"] == "Kira Voss"
     assert body["scene_title"] == "Crimson Echoes"
     assert len(body["choices"]) == 3
@@ -455,7 +457,8 @@ def test_opening_scene_route_rejects_missing_answers(client: TestClient) -> None
     response = client.post(
         "/story/opening",
         json={
-            "theme": "Cyberpunk Noir",
+            "story_id": "story_test_1",
+            "theme_id": "cyberpunk-noir",
             "character_name": "Kira Voss",
             "answers": [],
         },

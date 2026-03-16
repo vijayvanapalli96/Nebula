@@ -157,6 +157,8 @@ Rules:
 - Use the character name and their answers to shape the world.
 - Provide 3-4 branching choices, each leading in a meaningfully different direction.
 - Each choice must have a short direction_hint describing the narrative consequence.
+- summary: a concise 1-2 sentence recap of THIS scene only.  This is used as
+  rolling context for future continuation scenes, so capture the key plot beat and setting.
 - video_prompt (scene level): a vivid 1-2 sentence cinematic motion description of the
   opening scene, suitable for a video generation model. Describe camera movement, action,
   atmosphere. No UI text, no titles.
@@ -169,6 +171,7 @@ Required JSON shape:
 {
   "scene_title": "string",
   "scene_description": "string",
+  "summary": "string",
   "video_prompt": "string",
   "choices": [
     {
