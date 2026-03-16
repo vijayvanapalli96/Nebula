@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import StoryCarousel from '../features/stories/StoryCarousel';
@@ -63,16 +63,19 @@ const fadeUp = {
 // ─── Page ─────────────────────────────────────────────────────────────────
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const { userStories, featuredUserStories, fetchUserStories } = useStoryStore();
   const { featuredThemes, themes, fetchThemes } = useStoryThemeStore();
+  const prefetchedFromLoading =
+    (location.state as { prefetched?: boolean } | null)?.prefetched === true;
 
   // Fallback: fetch if the user lands here without going through /loading
   useEffect(() => {
-    fetchThemes();
-    fetchUserStories();
+    void fetchThemes();
+    void fetchUserStories(prefetchedFromLoading ? undefined : { force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prefetchedFromLoading]);
 
   const hour = new Date().getHours();
   const greeting =

@@ -16,6 +16,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 interface StoryThemeState {
   themes: Genre[];
+  hasFetchedThemes: boolean;
   featuredThemes: Genre[]; // 4 random picks
   loading: boolean;
   error: string | null;
@@ -28,13 +29,14 @@ interface StoryThemeState {
 
 export const useStoryThemeStore = create<StoryThemeState>((set, get) => ({
   themes: [],
+  hasFetchedThemes: false,
   featuredThemes: [],
   loading: false,
   error: null,
 
   fetchThemes: async () => {
     // Cache — skip network if already populated
-    if (get().themes.length > 0) return;
+    if (get().hasFetchedThemes) return;
     // De-duplicate concurrent calls (e.g. React StrictMode mount effects)
     if (themesRequestInFlight) return themesRequestInFlight;
 
@@ -43,7 +45,7 @@ export const useStoryThemeStore = create<StoryThemeState>((set, get) => ({
       try {
         const themes = await loadThemes();
         const featured = shuffle(themes).slice(0, 4);
-        set({ themes, featuredThemes: featured, loading: false });
+        set({ themes, featuredThemes: featured, loading: false, hasFetchedThemes: true });
       } catch (err) {
         set({
           loading: false,
@@ -61,7 +63,7 @@ export const useStoryThemeStore = create<StoryThemeState>((set, get) => ({
 
   setThemes: (themes) => {
     const featured = shuffle(themes).slice(0, 4);
-    set({ themes, featuredThemes: featured });
+    set({ themes, featuredThemes: featured, hasFetchedThemes: true });
   },
 
   setFeaturedThemes: (featuredThemes) => set({ featuredThemes }),
