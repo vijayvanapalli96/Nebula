@@ -16,6 +16,7 @@ from app.presentation.api.schemas import (
     StoryActionRequest,
     StoryActionResponse,
     StoryCardResponse,
+    StorySceneResponse,
     StoryStartRequest,
     StoryStartResponse,
     StoryThemeResponse,
@@ -28,6 +29,7 @@ from app.presentation.api.schemas import (
     to_start_command,
     to_start_response,
     to_story_card_response,
+    to_story_scene_response,
     to_story_theme_response,
 )
 
@@ -155,3 +157,16 @@ async def list_story_themes(
 ) -> list[StoryThemeResponse]:
     views = use_case.list_story_themes()
     return [to_story_theme_response(item) for item in views]
+
+
+@router.get(
+    "/stories/{storyId}/scenes",
+    response_model=list[StorySceneResponse],
+    dependencies=[Depends(require_auth)],
+)
+async def list_story_scenes(
+    storyId: str,
+    use_case: StoryEngineUseCase = Depends(get_use_case),
+) -> list[StorySceneResponse]:
+    views = use_case.list_story_scenes(story_id=storyId)
+    return [to_story_scene_response(item) for item in views]

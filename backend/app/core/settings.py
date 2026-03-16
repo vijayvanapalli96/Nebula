@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     firebase_project_id: str = Field(default="", alias="FIREBASE_PROJECT_ID")
     firebase_credentials_path: str = Field(default="", alias="FIREBASE_CREDENTIALS_PATH")
     firebase_themes_collection: str = Field(default="themes", alias="FIREBASE_THEMES_COLLECTION")
+    firebase_stories_collection: str = Field(default="stories", alias="FIREBASE_STORIES_COLLECTION")
+    firebase_scenes_subcollection: str = Field(default="scenes", alias="FIREBASE_SCENES_SUBCOLLECTION")
     scene_word_limit: int = 120
 
     model_config = SettingsConfigDict(

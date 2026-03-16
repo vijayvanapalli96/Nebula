@@ -18,10 +18,12 @@ from app.core.settings import get_settings
 from app.domain.repositories.asset_repository import AssetRepository
 from app.domain.repositories.composition_repository import CompositionRepository
 from app.domain.repositories.project_repository import ProjectRepository
+from app.domain.repositories.story_scene_repository import StorySceneRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
 from app.domain.repositories.usage_repository import UsageRepository
 from app.domain.repositories.video_repository import VideoJobRepository
+from app.infrastructure.repositories.firestore_story_scene_repository import FirestoreStorySceneRepository
 from app.infrastructure.repositories.firestore_story_theme_repository import FirestoreStoryThemeRepository
 from app.infrastructure.repositories.in_memory_creative_repository import (
     InMemoryAssetRepository,
@@ -30,6 +32,7 @@ from app.infrastructure.repositories.in_memory_creative_repository import (
     InMemoryProjectRepository,
     InMemoryUsageRepository,
 )
+from app.infrastructure.repositories.in_memory_story_scene_repository import InMemoryStorySceneRepository
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 from app.infrastructure.repositories.in_memory_story_theme_repository import InMemoryStoryThemeRepository
 from app.infrastructure.repositories.in_memory_video_repository import InMemoryVideoJobRepository
@@ -37,6 +40,7 @@ from app.infrastructure.repositories.in_memory_video_repository import InMemoryV
 _story_repository = InMemoryStoryStateRepository()
 _video_repository = InMemoryVideoJobRepository()
 _theme_repository = InMemoryStoryThemeRepository()
+_scene_repository = InMemoryStorySceneRepository()
 _creative_workspace = InMemoryCreativeWorkspaceRepository()
 _project_repository = InMemoryProjectRepository(_creative_workspace)
 _composition_repository = InMemoryCompositionRepository(_creative_workspace)
@@ -138,12 +142,33 @@ def get_story_theme_repository() -> StoryThemeRepository:
     return _get_story_theme_repository_singleton()
 
 
+@lru_cache
+def _get_story_scene_repository_singleton() -> StorySceneRepository:
+    settings = get_settings()
+    firestore_client = _get_firestore_client_singleton()
+    stories_collection = settings.firebase_stories_collection.strip()
+    scenes_subcollection = settings.firebase_scenes_subcollection.strip()
+
+    if firestore_client is not None and stories_collection and scenes_subcollection:
+        return FirestoreStorySceneRepository(
+            firestore_client=firestore_client,
+            stories_collection=stories_collection,
+            scenes_subcollection=scenes_subcollection,
+        )
+    return _scene_repository
+
+
+def get_story_scene_repository() -> StorySceneRepository:
+    return _get_story_scene_repository_singleton()
+
+
 def get_use_case(
     repository: StoryStateRepository = Depends(get_repository),
     generator: StoryGeneratorPort = Depends(get_ai_generator),
     image_storage: ImageStoragePort | None = Depends(get_image_storage),
     video_generator: VideoGeneratorPort = Depends(get_video_generator),
     theme_repository: StoryThemeRepository = Depends(get_story_theme_repository),
+    scene_repository: StorySceneRepository = Depends(get_story_scene_repository),
 ) -> StoryEngineUseCase:
     return StoryEngineUseCase(
         repository=repository,
@@ -151,6 +176,7 @@ def get_use_case(
         image_storage=image_storage,
         video_generator=video_generator,
         theme_repository=theme_repository,
+        scene_repository=scene_repository,
         media_tracker=get_media_tracker(),
     )
 

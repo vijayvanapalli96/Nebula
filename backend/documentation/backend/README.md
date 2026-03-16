@@ -100,6 +100,8 @@ GEMINI_MODEL=gemini-2.5-flash
 FIREBASE_PROJECT_ID=disclosure-nlu
 FIREBASE_CREDENTIALS_PATH=/absolute/path/to/firebase-service-account.json
 FIREBASE_THEMES_COLLECTION=themes
+FIREBASE_STORIES_COLLECTION=stories
+FIREBASE_SCENES_SUBCOLLECTION=scenes
 ```
 
 ## Run The Service
@@ -196,6 +198,13 @@ If `FIREBASE_PROJECT_ID` is configured, themes are read from Firestore collectio
 `FIREBASE_THEMES_COLLECTION` (default: `themes`); otherwise in-memory defaults are returned.
 For local runs, set `FIREBASE_CREDENTIALS_PATH` to a Firebase service account key file.
 
+### `GET /stories/{storyId}/scenes`
+
+Returns saved scenes for a story from Firestore path:
+`/{FIREBASE_STORIES_COLLECTION}/{storyId}/{FIREBASE_SCENES_SUBCOLLECTION}`.
+The response includes graph/navigation fields (`parent_scene_id`, `path_depth`,
+`is_current_checkpoint`) plus scene content and asset references.
+
 ### `GET /health`
 
 Basic health endpoint.
@@ -250,6 +259,7 @@ python scripts/firebase/seed_story_themes.py \
 Schema reference:
 
 - `scripts/firebase/STORY_THEMES_SCHEMA.md`
+- `scripts/firebase/STORY_SCENES_SCHEMA.md`
 
 ## Implementation Notes
 

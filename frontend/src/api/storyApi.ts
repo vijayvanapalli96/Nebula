@@ -23,6 +23,41 @@ interface StoryThemePayload {
   accent_color: string;
 }
 
+export interface StoryScenePayload {
+  scene_id: string;
+  story_id: string;
+  chapter_number: number;
+  scene_number: number;
+  title: string;
+  description: string;
+  short_summary: string;
+  full_narrative: string;
+  parent_scene_id: string | null;
+  selected_choice_id_from_parent: string | null;
+  path_depth: number;
+  is_root: boolean;
+  is_current_checkpoint: boolean;
+  is_ending: boolean;
+  ending_type: string | null;
+  scene_type: string;
+  mood: string;
+  location: { name: string; type: string } | null;
+  characters_present: string[];
+  asset_refs: {
+    hero_image_id: string | null;
+    scene_image_id: string | null;
+    scene_video_id: string | null;
+    scene_audio_id: string | null;
+  };
+  generation_status: {
+    text: string;
+    image: string;
+    video: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
 const OPTION_IMAGES = [
   'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&q=80',
   'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&q=80',
@@ -61,6 +96,20 @@ export async function fetchStoryThemes(): Promise<Genre[]> {
     image: item.image,
     accentColor: item.accent_color,
   }));
+}
+
+/** GET /stories/{storyId}/scenes — fetches saved scene graph nodes for a story. */
+export async function fetchStoryScenes(storyId: string): Promise<StoryScenePayload[]> {
+  const res = await fetch(`${BASE_URL}/stories/${storyId}/scenes`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch story scenes: ${res.status} ${res.statusText}`);
+  }
+
+  return (await res.json()) as StoryScenePayload[];
 }
 
 /**

@@ -51,3 +51,51 @@ class StoryThemeView:
     description: str
     image: str
     accent_color: str
+
+
+@dataclass(frozen=True)
+class StorySceneLocationView:
+    name: str
+    location_type: str
+
+
+@dataclass(frozen=True)
+class StorySceneAssetRefsView:
+    hero_image_id: str | None
+    scene_image_id: str | None
+    scene_video_id: str | None
+    scene_audio_id: str | None
+
+
+@dataclass(frozen=True)
+class StorySceneGenerationStatusView:
+    text: str
+    image: str
+    video: str
+
+
+@dataclass(frozen=True)
+class StorySceneView:
+    scene_id: str
+    story_id: str
+    chapter_number: int
+    scene_number: int
+    title: str
+    description: str
+    short_summary: str
+    full_narrative: str
+    parent_scene_id: str | None
+    selected_choice_id_from_parent: str | None
+    path_depth: int
+    is_root: bool
+    is_current_checkpoint: bool
+    is_ending: bool
+    ending_type: str | None
+    scene_type: str
+    mood: str
+    location: StorySceneLocationView | None
+    characters_present: list[str]
+    asset_refs: StorySceneAssetRefsView
+    generation_status: StorySceneGenerationStatusView
+    created_at: datetime
+    updated_at: datetime

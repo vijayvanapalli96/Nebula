@@ -6,13 +6,25 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
+from app.application.dto.story_results import (
+    OpeningSceneResult,
+    QuestionsResult,
+    StoryActionResult,
+    StoryCardView,
+    StorySceneAssetRefsView,
+    StorySceneGenerationStatusView,
+    StorySceneLocationView,
+    StorySceneView,
+    StoryStartResult,
+    StoryThemeView,
+)
 from app.application.errors import InvalidChoiceError, SessionNotFoundError
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
 from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
+from app.domain.repositories.story_scene_repository import StorySceneRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
 
@@ -27,6 +39,7 @@ class StoryEngineUseCase:
         image_storage: ImageStoragePort | None = None,
         video_generator: VideoGeneratorPort | None = None,
         theme_repository: StoryThemeRepository | None = None,
+        scene_repository: StorySceneRepository | None = None,
         media_tracker: MediaTaskTracker | None = None,
     ) -> None:
         self._repository = repository
@@ -34,6 +47,7 @@ class StoryEngineUseCase:
         self._image_storage = image_storage
         self._video_generator = video_generator
         self._theme_repository = theme_repository
+        self._scene_repository = scene_repository
         self._media_tracker = media_tracker
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
@@ -273,6 +287,56 @@ class StoryEngineUseCase:
                 accent_color=theme.accent_color,
             )
             for theme in self._theme_repository.list_active()
+        ]
+
+    def list_story_scenes(self, story_id: str) -> list[StorySceneView]:
+        if self._scene_repository is None:
+            return []
+
+        records = self._scene_repository.list_by_story_id(story_id.strip())
+        return [
+            StorySceneView(
+                scene_id=item.scene_id,
+                story_id=item.story_id,
+                chapter_number=item.chapter_number,
+                scene_number=item.scene_number,
+                title=item.title,
+                description=item.description,
+                short_summary=item.short_summary,
+                full_narrative=item.full_narrative,
+                parent_scene_id=item.parent_scene_id,
+                selected_choice_id_from_parent=item.selected_choice_id_from_parent,
+                path_depth=item.path_depth,
+                is_root=item.is_root,
+                is_current_checkpoint=item.is_current_checkpoint,
+                is_ending=item.is_ending,
+                ending_type=item.ending_type,
+                scene_type=item.scene_type,
+                mood=item.mood,
+                location=(
+                    StorySceneLocationView(
+                        name=item.location.name,
+                        location_type=item.location.location_type,
+                    )
+                    if item.location is not None
+                    else None
+                ),
+                characters_present=item.characters_present,
+                asset_refs=StorySceneAssetRefsView(
+                    hero_image_id=item.asset_refs.hero_image_id,
+                    scene_image_id=item.asset_refs.scene_image_id,
+                    scene_video_id=item.asset_refs.scene_video_id,
+                    scene_audio_id=item.asset_refs.scene_audio_id,
+                ),
+                generation_status=StorySceneGenerationStatusView(
+                    text=item.generation_status.text,
+                    image=item.generation_status.image,
+                    video=item.generation_status.video,
+                ),
+                created_at=item.created_at,
+                updated_at=item.updated_at,
+            )
+            for item in records
         ]
 
     @staticmethod

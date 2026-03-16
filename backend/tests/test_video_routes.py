@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.application.dto.video_results import VideoJobResult
 from app.main import create_app
-from app.presentation.api.dependencies import get_video_use_case
+from app.presentation.api.dependencies import get_video_use_case, require_auth
 
 
 class FakeVideoUseCase:
@@ -42,6 +42,7 @@ class FakeVideoUseCase:
 def client() -> TestClient:
     app = create_app()
     app.dependency_overrides[get_video_use_case] = lambda: FakeVideoUseCase()
+    app.dependency_overrides[require_auth] = lambda: "test-user"
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

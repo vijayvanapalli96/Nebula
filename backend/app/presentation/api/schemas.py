@@ -6,7 +6,15 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
+from app.application.dto.story_results import (
+    OpeningSceneResult,
+    QuestionsResult,
+    StoryActionResult,
+    StoryCardView,
+    StorySceneView,
+    StoryStartResult,
+    StoryThemeView,
+)
 from app.domain.models.story import HistoryEntry, Scene, StoryState
 
 
@@ -94,6 +102,50 @@ class StoryThemeResponse(BaseModel):
     description: str
     image: str
     accent_color: str
+
+
+class StorySceneLocationResponse(BaseModel):
+    name: str
+    type: str
+
+
+class StorySceneAssetRefsResponse(BaseModel):
+    hero_image_id: str | None = None
+    scene_image_id: str | None = None
+    scene_video_id: str | None = None
+    scene_audio_id: str | None = None
+
+
+class StorySceneGenerationStatusResponse(BaseModel):
+    text: str
+    image: str
+    video: str
+
+
+class StorySceneResponse(BaseModel):
+    scene_id: str
+    story_id: str
+    chapter_number: int = Field(..., ge=1)
+    scene_number: int = Field(..., ge=1)
+    title: str
+    description: str
+    short_summary: str
+    full_narrative: str
+    parent_scene_id: str | None = None
+    selected_choice_id_from_parent: str | None = None
+    path_depth: int = Field(default=0, ge=0)
+    is_root: bool
+    is_current_checkpoint: bool
+    is_ending: bool
+    ending_type: str | None = None
+    scene_type: str
+    mood: str
+    location: StorySceneLocationResponse | None = None
+    characters_present: list[str] = Field(default_factory=list)
+    asset_refs: StorySceneAssetRefsResponse
+    generation_status: StorySceneGenerationStatusResponse
+    created_at: datetime
+    updated_at: datetime
 
 
 class GenerateQuestionsRequest(BaseModel):
@@ -195,6 +247,50 @@ def to_story_theme_response(view: StoryThemeView) -> StoryThemeResponse:
         description=view.description,
         image=view.image,
         accent_color=view.accent_color,
+    )
+
+
+def to_story_scene_response(view: StorySceneView) -> StorySceneResponse:
+    return StorySceneResponse(
+        scene_id=view.scene_id,
+        story_id=view.story_id,
+        chapter_number=view.chapter_number,
+        scene_number=view.scene_number,
+        title=view.title,
+        description=view.description,
+        short_summary=view.short_summary,
+        full_narrative=view.full_narrative,
+        parent_scene_id=view.parent_scene_id,
+        selected_choice_id_from_parent=view.selected_choice_id_from_parent,
+        path_depth=view.path_depth,
+        is_root=view.is_root,
+        is_current_checkpoint=view.is_current_checkpoint,
+        is_ending=view.is_ending,
+        ending_type=view.ending_type,
+        scene_type=view.scene_type,
+        mood=view.mood,
+        location=(
+            StorySceneLocationResponse(
+                name=view.location.name,
+                type=view.location.location_type,
+            )
+            if view.location is not None
+            else None
+        ),
+        characters_present=view.characters_present,
+        asset_refs=StorySceneAssetRefsResponse(
+            hero_image_id=view.asset_refs.hero_image_id,
+            scene_image_id=view.asset_refs.scene_image_id,
+            scene_video_id=view.asset_refs.scene_video_id,
+            scene_audio_id=view.asset_refs.scene_audio_id,
+        ),
+        generation_status=StorySceneGenerationStatusResponse(
+            text=view.generation_status.text,
+            image=view.generation_status.image,
+            video=view.generation_status.video,
+        ),
+        created_at=view.created_at,
+        updated_at=view.updated_at,
     )
 
 

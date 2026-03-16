@@ -7,7 +7,21 @@ import pytest
 from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
 from app.application.errors import InvalidChoiceError
 from app.application.use_cases.story_engine import StoryEngineUseCase
-from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryTheme
+from app.domain.models.story import (
+    InitialQuestion,
+    OpeningChoice,
+    OpeningScene,
+    QuestionOption,
+    Scene,
+    SceneChoice,
+    SceneMetadata,
+    StorySceneAssetRefs,
+    StorySceneGenerationStatus,
+    StorySceneLocation,
+    StorySceneRecord,
+    StoryTheme,
+    utc_now,
+)
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 
 
@@ -123,6 +137,49 @@ class FakeThemeRepository:
                 image="https://example.com/noir.jpg",
                 accent_color="rgba(234,179,8,0.6)",
                 sort_order=10,
+            )
+        ]
+
+
+class FakeSceneRepository:
+    def list_by_story_id(self, story_id: str) -> list[StorySceneRecord]:
+        return [
+            StorySceneRecord(
+                scene_id="scene_001",
+                story_id=story_id,
+                chapter_number=1,
+                scene_number=1,
+                title="Crimson Echoes",
+                description="The neon-soaked city pulses beneath you.",
+                short_summary="Kira overlooks the city and spots three possible paths.",
+                full_narrative="The city hums with danger below the rooftop edge.",
+                parent_scene_id=None,
+                selected_choice_id_from_parent=None,
+                path_depth=0,
+                is_root=True,
+                is_current_checkpoint=True,
+                is_ending=False,
+                ending_type=None,
+                scene_type="opening",
+                mood="dark",
+                location=StorySceneLocation(
+                    name="Skyline Rooftop",
+                    location_type="city_rooftop",
+                ),
+                characters_present=["kira_voss"],
+                asset_refs=StorySceneAssetRefs(
+                    hero_image_id="asset_hero_001",
+                    scene_image_id="asset_scene_001",
+                    scene_video_id="asset_video_001",
+                    scene_audio_id=None,
+                ),
+                generation_status=StorySceneGenerationStatus(
+                    text="completed",
+                    image="completed",
+                    video="completed",
+                ),
+                created_at=utc_now(),
+                updated_at=utc_now(),
             )
         ]
 
@@ -258,3 +315,20 @@ def test_list_story_themes_returns_active_theme_views() -> None:
     assert len(result) == 1
     assert result[0].id == "genre-noir"
     assert result[0].title == "Noir Detective"
+
+
+def test_list_story_scenes_returns_scene_views() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        scene_repository=FakeSceneRepository(),
+    )
+
+    result = use_case.list_story_scenes(story_id="story_123")
+
+    assert len(result) == 1
+    assert result[0].scene_id == "scene_001"
+    assert result[0].story_id == "story_123"
+    assert result[0].location is not None
+    assert result[0].location.name == "Skyline Rooftop"

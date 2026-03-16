@@ -91,6 +91,54 @@ class StoryState:
 
 
 @dataclass(frozen=True)
+class StorySceneLocation:
+    name: str
+    location_type: str
+
+
+@dataclass(frozen=True)
+class StorySceneAssetRefs:
+    hero_image_id: str | None = None
+    scene_image_id: str | None = None
+    scene_video_id: str | None = None
+    scene_audio_id: str | None = None
+
+
+@dataclass(frozen=True)
+class StorySceneGenerationStatus:
+    text: str = "pending"
+    image: str = "pending"
+    video: str = "pending"
+
+
+@dataclass(frozen=True)
+class StorySceneRecord:
+    scene_id: str
+    story_id: str
+    chapter_number: int
+    scene_number: int
+    title: str
+    description: str
+    short_summary: str
+    full_narrative: str
+    parent_scene_id: str | None
+    selected_choice_id_from_parent: str | None
+    path_depth: int
+    is_root: bool
+    is_current_checkpoint: bool
+    is_ending: bool
+    ending_type: str | None
+    scene_type: str
+    mood: str
+    location: StorySceneLocation | None
+    characters_present: list[str]
+    asset_refs: StorySceneAssetRefs
+    generation_status: StorySceneGenerationStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
 class StoryTheme:
     theme_id: str
     title: str

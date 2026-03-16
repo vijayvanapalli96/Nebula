@@ -5,11 +5,22 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
+from app.application.dto.story_results import (
+    OpeningSceneResult,
+    QuestionsResult,
+    StoryActionResult,
+    StoryCardView,
+    StorySceneAssetRefsView,
+    StorySceneGenerationStatusView,
+    StorySceneLocationView,
+    StorySceneView,
+    StoryStartResult,
+    StoryThemeView,
+)
 from app.application.errors import SessionNotFoundError
 from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
-from app.presentation.api.dependencies import get_use_case
+from app.presentation.api.dependencies import get_use_case, require_auth
 
 
 def _scene(scene_id: str, chapter: int) -> Scene:
@@ -148,11 +159,53 @@ class FakeUseCase:
             )
         ]
 
+    def list_story_scenes(self, story_id: str) -> list[StorySceneView]:
+        return [
+            StorySceneView(
+                scene_id="scene_001",
+                story_id=story_id,
+                chapter_number=1,
+                scene_number=1,
+                title="Crimson Echoes",
+                description="The neon-soaked city pulses beneath you.",
+                short_summary="Kira overlooks the city and spots three possible paths.",
+                full_narrative="The city hums with danger below the rooftop edge.",
+                parent_scene_id=None,
+                selected_choice_id_from_parent=None,
+                path_depth=0,
+                is_root=True,
+                is_current_checkpoint=True,
+                is_ending=False,
+                ending_type=None,
+                scene_type="opening",
+                mood="dark",
+                location=StorySceneLocationView(
+                    name="Skyline Rooftop",
+                    location_type="city_rooftop",
+                ),
+                characters_present=["kira_voss"],
+                asset_refs=StorySceneAssetRefsView(
+                    hero_image_id="asset_hero_001",
+                    scene_image_id="asset_scene_001",
+                    scene_video_id="asset_video_001",
+                    scene_audio_id=None,
+                ),
+                generation_status=StorySceneGenerationStatusView(
+                    text="completed",
+                    image="completed",
+                    video="completed",
+                ),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        ]
+
 
 @pytest.fixture
 def client() -> TestClient:
     app = create_app()
     app.dependency_overrides[get_use_case] = lambda: FakeUseCase()
+    app.dependency_overrides[require_auth] = lambda: "test-user"
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -205,6 +258,16 @@ def test_list_story_themes_route_returns_themes(client: TestClient) -> None:
     assert len(body) == 1
     assert body[0]["id"] == "genre-noir"
     assert body[0]["title"] == "Noir Detective"
+
+
+def test_list_story_scenes_route_returns_scenes(client: TestClient) -> None:
+    response = client.get("/stories/story_123/scenes")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["scene_id"] == "scene_001"
+    assert body[0]["story_id"] == "story_123"
+    assert body[0]["location"]["name"] == "Skyline Rooftop"
 
 
 def test_generate_questions_route_returns_questions(client: TestClient) -> None:
