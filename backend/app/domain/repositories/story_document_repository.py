@@ -29,3 +29,35 @@ class StoryDocumentRepository(Protocol):
     ) -> None:
         """Write a question document to users/{user_id}/stories/{story_id}/questions/{question_id}."""
         ...
+
+    def save_answers(
+        self,
+        user_id: str,
+        story_id: str,
+        answers: list[dict],
+        custom_input: str,
+    ) -> None:
+        """Persist questionnaire answers to users/{user_id}/stories/{story_id}/answers/."""
+        ...
+
+    def store_scene(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+        scene_data: dict,
+    ) -> None:
+        """Write a scene document to users/{user_id}/stories/{story_id}/scenes/{scene_id}."""
+        ...
+
+    def update_scene_choice_media(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+        choice_id: str,
+        image_url: str | None = None,
+        video_url: str | None = None,
+    ) -> None:
+        """Update a single choice's imageUrl/videoUrl inside a scene document."""
+        ...

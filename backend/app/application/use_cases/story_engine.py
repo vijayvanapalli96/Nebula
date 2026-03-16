@@ -24,6 +24,8 @@ from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
 from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
+from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
+from app.domain.repositories.story_document_repository import StoryDocumentRepository
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState, UserStoryRecord
 from app.domain.repositories.story_scene_repository import StorySceneRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
@@ -44,6 +46,8 @@ class StoryEngineUseCase:
         scene_repository: StorySceneRepository | None = None,
         user_story_repository: UserStoryRepository | None = None,
         media_tracker: MediaTaskTracker | None = None,
+        story_doc_repository: StoryDocumentRepository | None = None,
+        get_theme_use_case=None,  # GetThemeUseCase — avoid circular import
     ) -> None:
         self._repository = repository
         self._generator = generator
@@ -53,6 +57,8 @@ class StoryEngineUseCase:
         self._scene_repository = scene_repository
         self._user_story_repository = user_story_repository
         self._media_tracker = media_tracker
+        self._story_doc_repository = story_doc_repository
+        self._get_theme_use_case = get_theme_use_case
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
         """Generate questions then generate all option images inline (awaited)."""
@@ -116,23 +122,129 @@ class StoryEngineUseCase:
 
         await asyncio.gather(*[_process_question(q) for q in questions])
 
-    async def generate_opening_scene(self, command: GenerateOpeningSceneCommand) -> OpeningSceneResult:
-        answers_tuples = [(a.question, a.answer) for a in command.answers]
+    async def generate_opening_scene(
+        self,
+        command: GenerateOpeningSceneCommand,
+        user_id: str = "",
+    ) -> OpeningSceneResult:
+        """Full orchestration: save answers → generate scene → persist to Firestore."""
+
+        # 1. Mark story as generating
+        if self._story_doc_repository is not None and user_id:
+            self._story_doc_repository.update_status(
+                user_id, command.story_id,
+                "generating_opening_scene",
+                {"questionnaireCompleted": True},
+            )
+
+        # 2. Fetch full theme detail for a richer LLM prompt
+        from app.domain.models.theme_detail import PromptHints, ThemeDetail
+
+        theme_detail: ThemeDetail = ThemeDetail(
+            theme_id=command.theme_id,
+            title=command.theme_id,  # bare fallback; overwritten below if lookup succeeds
+            category="",
+            description="",
+        )
+        if self._get_theme_use_case is not None:
+            try:
+                fetched = self._get_theme_use_case.execute(command.theme_id)
+                theme_detail = fetched
+            except Exception:
+                logger.warning("Could not fetch theme %s; using minimal ThemeDetail", command.theme_id)
+
+        # 3. Generate scene via LLM — pass the full ThemeDetail for richer context
+        answers_tuples = [(a.question, a.selected_option) for a in command.answers]
         scene = await self._generator.generate_opening_scene_from_answers(
-            theme=command.theme.strip(),
+            theme=theme_detail,
             character_name=command.character_name.strip(),
             answers=answers_tuples,
         )
 
+        # 4. Persist answers subcollection + custom input
+        if self._story_doc_repository is not None and user_id:
+            try:
+                self._story_doc_repository.save_answers(
+                    user_id,
+                    command.story_id,
+                    [
+                        {
+                            "questionId": a.question_id,
+                            "question": a.question,
+                            "selectedOption": a.selected_option,
+                            "imageUrl": a.image_url,
+                        }
+                        for a in command.answers
+                    ],
+                    command.custom_input,
+                )
+            except Exception:
+                logger.exception("Failed to save answers for story %s", command.story_id)
+
+            # 5. Store scene_001 as the root scene of the branching tree
+            try:
+                self._story_doc_repository.store_scene(
+                    user_id,
+                    command.story_id,
+                    "scene_001",
+                    {
+                        "sceneId": "scene_001",
+                        "title": scene.scene_title,
+                        "description": scene.scene_description,
+                        "isRoot": True,
+                        "depth": 0,
+                        "parentSceneId": None,   # ← backwards link (null = root)
+                        "nextSceneIds": [],       # ← forward links; populated as children are created
+                        "videoPrompt": scene.video_prompt,
+                        "choices": [
+                            {
+                                "choiceId": c.choice_id,
+                                "choiceText": c.choice_text,
+                                "directionHint": c.direction_hint,
+                                "imagePrompt": c.image_prompt,
+                                "videoPrompt": c.video_prompt,
+                                "nextSceneId": None,
+                                "imageUrl": None,
+                                "videoUrl": None,
+                            }
+                            for c in scene.choices
+                        ],
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to store scene_001 for story %s", command.story_id)
+
+            # 6. Anchor the story doc to the root scene — no linear counters, tree only
+            try:
+                self._story_doc_repository.update_status(
+                    user_id, command.story_id,
+                    "opening_scene_ready",
+                    {
+                        "rootSceneId": "scene_001",  # entry point of the tree
+                        "branchDepth": 0,             # deepest explored depth so far
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to update story graph for story %s", command.story_id)
+
         return OpeningSceneResult(
-            theme=command.theme.strip(),
+            story_id=command.story_id,
+            theme=theme_detail.title,
             character_name=command.character_name.strip(),
             scene=scene,
         )
 
-    def fire_opening_scene_media(self, scene) -> str | None:  # noqa: ANN001
+    def fire_opening_scene_media(  # noqa: ANN001
+        self,
+        scene,
+        story_id: str = "",
+        user_id: str = "",
+        scene_id: str = "scene_001",
+    ) -> str | None:
         """Register opening-scene media as a request and kick off background generation.
 
+        GCS paths: story/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png|video.mp4
+        After each asset upload completes, the matching Firestore choice is updated with its URL.
         Returns ``media_request_id`` (or ``None`` if storage is unavailable).
         """
         if self._image_storage is None or self._media_tracker is None:
@@ -167,22 +279,64 @@ class StoryEngineUseCase:
             return None
 
         request_id = self._media_tracker.create_request(assets)
-        asyncio.create_task(self._run_opening_scene_media(request_id, scene))
+        asyncio.create_task(
+            self._run_opening_scene_media(request_id, scene, story_id, user_id, scene_id)
+        )
         return request_id
 
-    async def _run_opening_scene_media(self, request_id: str, scene) -> None:  # noqa: ANN001
-        """Background coroutine: generate all opening-scene media in parallel."""
+    async def _run_opening_scene_media(  # noqa: ANN001
+        self,
+        request_id: str,
+        scene,
+        story_id: str = "",
+        user_id: str = "",
+        scene_id: str = "scene_001",
+    ) -> None:
+        """Background coroutine: generate all opening-scene media in parallel.
 
-        async def _gen_image(asset_key: str, prompt: str, path_prefix: str) -> None:
+        GCS path convention:
+          story/{story_id}/scene/{scene_id}/choice/{choice_id}/image.png
+          story/{story_id}/scene/{scene_id}/choice/{choice_id}/video.mp4
+          story/{story_id}/scene/{scene_id}/scene_video.mp4
+        After each upload, the Firestore scene document's matching choice is updated.
+        """
+
+        def _choice_path(choice_id: str, filename: str) -> str:
+            if story_id:
+                return f"story/{story_id}/scene/{scene_id}/choice/{choice_id}/{filename}"
+            return f"choice-{choice_id}/{uuid4()!s}-{filename}"
+
+        def _scene_path(filename: str) -> str:
+            if story_id:
+                return f"story/{story_id}/scene/{scene_id}/{filename}"
+            return f"opening-scene/{uuid4()!s}-{filename}"
+
+        def _write_choice_media(
+            choice_id: str, *, image_url: str | None = None, video_url: str | None = None
+        ) -> None:
+            """Read-modify-write the choice array on the Firestore scene document."""
+            if self._story_doc_repository is None or not (user_id and story_id):
+                return
+            try:
+                self._story_doc_repository.update_scene_choice_media(
+                    user_id, story_id, scene_id, choice_id,
+                    image_url=image_url,
+                    video_url=video_url,
+                )
+            except Exception:
+                logger.exception("Failed to write choice %s media URL to Firestore", choice_id)
+
+        async def _gen_image(asset_key: str, prompt: str, path: str, choice_id: str = "") -> None:
             try:
                 image_bytes = await self._generator.generate_option_image(prompt)
-                path = f"{path_prefix}/{uuid4()}.png"
                 uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
                 self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+                if choice_id:
+                    _write_choice_media(choice_id, image_url=uri)
             except Exception as exc:
                 self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
-        async def _gen_video(asset_key: str, prompt: str, path_prefix: str) -> None:
+        async def _gen_video(asset_key: str, prompt: str, path: str, choice_id: str = "") -> None:
             try:
                 req = VideoGenerationRequest(
                     prompt=prompt,
@@ -191,25 +345,34 @@ class StoryEngineUseCase:
                     aspect_ratio="16:9",
                 )
                 result = await self._video_generator.generate(req)  # type: ignore[union-attr]
-                path = f"{path_prefix}/{uuid4()}.mp4"
                 uri = await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
                 self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
+                if choice_id:
+                    _write_choice_media(choice_id, video_url=uri)
             except Exception as exc:
                 self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
         tasks: list = []
 
         if scene.video_prompt and self._video_generator is not None:
-            tasks.append(_gen_video("scene_video", scene.video_prompt, "opening-scene"))
+            tasks.append(_gen_video(
+                "scene_video", scene.video_prompt, _scene_path("scene_video.mp4"),
+            ))
 
         for choice in scene.choices:
             if choice.image_prompt:
                 tasks.append(_gen_image(
-                    f"choice_{choice.choice_id}_image", choice.image_prompt, "choice-images",
+                    f"choice_{choice.choice_id}_image",
+                    choice.image_prompt,
+                    _choice_path(choice.choice_id, "image.png"),
+                    choice.choice_id,
                 ))
             if choice.video_prompt and self._video_generator is not None:
                 tasks.append(_gen_video(
-                    f"choice_{choice.choice_id}_video", choice.video_prompt, f"choice-{choice.choice_id}",
+                    f"choice_{choice.choice_id}_video",
+                    choice.video_prompt,
+                    _choice_path(choice.choice_id, "video.mp4"),
+                    choice.choice_id,
                 ))
 
         if tasks:

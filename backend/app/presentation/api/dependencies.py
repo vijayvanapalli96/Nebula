@@ -202,8 +202,8 @@ def get_use_case(
     image_storage: ImageStoragePort | None = Depends(get_image_storage),
     video_generator: VideoGeneratorPort = Depends(get_video_generator),
     theme_repository: StoryThemeRepository = Depends(get_story_theme_repository),
-    scene_repository: StorySceneRepository = Depends(get_story_scene_repository),
-    user_story_repository: UserStoryRepository | None = Depends(get_user_story_repository),
+    story_doc_repository: StoryDocumentRepository = Depends(get_story_document_repository),
+    get_theme_use_case: GetThemeUseCase = Depends(get_get_theme_use_case),
 ) -> StoryEngineUseCase:
     return StoryEngineUseCase(
         repository=repository,
@@ -214,6 +214,8 @@ def get_use_case(
         scene_repository=scene_repository,
         user_story_repository=user_story_repository,
         media_tracker=get_media_tracker(),
+        story_doc_repository=story_doc_repository,
+        get_theme_use_case=get_theme_use_case,
     )
 
 

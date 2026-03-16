@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.domain.models.theme_detail import ThemeDetail
+
 from app.domain.models.story import HistoryEntry, SceneChoice, StoryState
 from app.domain.models.theme_detail import ThemeDetail
 
@@ -179,18 +184,26 @@ Required JSON shape:
 
 
 def build_opening_scene_prompt(
-    theme: str, character_name: str, answers: list[tuple[str, str]]
+    theme: "ThemeDetail", character_name: str, answers: list[tuple[str, str]]
 ) -> str:
     answers_block = "\n".join(
         f"  Q: {question}\n  A: {answer}" for question, answer in answers
     )
+    tone_tags = ", ".join(theme.default_tone_tags) if theme.default_tone_tags else "none specified"
     return (
-        f"Theme: {theme}\n"
-        f"Character Name: {character_name}\n"
+        f"Theme Title     : {theme.title}\n"
+        f"Category        : {theme.category}\n"
+        f"Description     : {theme.description}\n"
+        f"Tone Tags       : {tone_tags}\n"
+        f"Narrative Style : {theme.prompt_hints.narrative_style}\n"
+        f"Visual Style    : {theme.prompt_hints.visual_style}\n"
+        f"Character Name  : {character_name}\n"
         "The player answered these world-building questions:\n"
         f"{answers_block}\n\n"
-        "Using these answers as creative seeds, write the opening scene that "
-        "drops the character into the world with immediate tension and a clear hook."
+        "Using the full theme context and the player's answers as creative seeds, "
+        "write the opening scene that drops the character into the world with "
+        "immediate tension and a clear hook. Match the theme's tone, narrative "
+        "style, and visual style throughout."
     )
 
 

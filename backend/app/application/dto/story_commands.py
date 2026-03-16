@@ -24,15 +24,19 @@ class GenerateStoryQuestionsCommand:
 
 @dataclass(frozen=True)
 class QuestionAnswer:
+    question_id: str
     question: str
-    answer: str
+    selected_option: str
+    image_url: str
 
 
 @dataclass(frozen=True)
 class GenerateOpeningSceneCommand:
-    theme: str
+    story_id: str
+    theme_id: str
     character_name: str
     answers: list[QuestionAnswer]
+    custom_input: str = ""
 
 
 @dataclass(frozen=True)

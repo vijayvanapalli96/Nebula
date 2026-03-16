@@ -21,6 +21,7 @@ class GenerateStoryQuestionsResult:
 
 @dataclass(frozen=True)
 class OpeningSceneResult:
+    story_id: str
     theme: str
     character_name: str
     scene: OpeningScene

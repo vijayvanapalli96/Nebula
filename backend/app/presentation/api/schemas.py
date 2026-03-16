@@ -209,14 +209,18 @@ class GenerateQuestionsResponse(BaseModel):
 
 
 class AnswerInput(BaseModel):
+    question_id: str = Field(default="", description="Unique question identifier.")
     question: str = Field(..., min_length=1, description="The question text.")
-    answer: str = Field(..., min_length=1, description="The selected answer.")
+    selected_option: str = Field(..., min_length=1, description="The selected answer text.")
+    image_url: str = Field(default="", description="GCS URL of the selected option image.")
 
 
 class OpeningSceneRequest(BaseModel):
-    theme: str = Field(..., min_length=1, description="Story theme.")
+    story_id: str = Field(..., min_length=1, description="Story document id from /story/questions.")
+    theme_id: str = Field(..., min_length=1, description="Firestore theme document id.")
     character_name: str = Field(..., min_length=1, description="Player character name.")
     answers: list[AnswerInput] = Field(..., min_length=1, description="Answered questions.")
+    custom_input: str = Field(default="", description="Free-text character customisation.")
 
 
 class OpeningChoiceResponse(BaseModel):
@@ -228,6 +232,7 @@ class OpeningChoiceResponse(BaseModel):
 
 
 class OpeningSceneResponse(BaseModel):
+    story_id: str = Field(default="", description="Story document id.")
     theme: str
     character_name: str
     scene_title: str
@@ -449,9 +454,19 @@ def to_story_questions_response(result: GenerateStoryQuestionsResult) -> Generat
 
 def to_opening_scene_command(request: OpeningSceneRequest) -> GenerateOpeningSceneCommand:
     return GenerateOpeningSceneCommand(
-        theme=request.theme,
+        story_id=request.story_id,
+        theme_id=request.theme_id,
         character_name=request.character_name,
-        answers=[QuestionAnswer(question=a.question, answer=a.answer) for a in request.answers],
+        answers=[
+            QuestionAnswer(
+                question_id=a.question_id,
+                question=a.question,
+                selected_option=a.selected_option,
+                image_url=a.image_url,
+            )
+            for a in request.answers
+        ],
+        custom_input=request.custom_input,
     )
 
 
@@ -460,6 +475,7 @@ def to_opening_scene_response(
     media_request_id: str | None = None,
 ) -> OpeningSceneResponse:
     return OpeningSceneResponse(
+        story_id=result.story_id,
         theme=result.theme,
         character_name=result.character_name,
         scene_title=result.scene.scene_title,
