@@ -16,6 +16,7 @@ from app.presentation.api.schemas import (
     StoryActionRequest,
     StoryActionResponse,
     StoryCardResponse,
+    StoryDetailResponse,
     StorySceneResponse,
     StoryStartRequest,
     StoryStartResponse,
@@ -29,6 +30,7 @@ from app.presentation.api.schemas import (
     to_start_command,
     to_start_response,
     to_story_card_response,
+    to_story_detail_response,
     to_story_scene_response,
     to_story_theme_response,
 )
@@ -149,6 +151,28 @@ async def list_my_stories(
 ) -> list[StoryCardResponse]:
     views = use_case.list_active_stories(user_id=user_id)
     return [to_story_card_response(item) for item in views]
+
+
+@router.get("/story/{user_id}/{story_id}", response_model=StoryDetailResponse)
+async def get_story_detail(
+    user_id: str,
+    story_id: str,
+    token_uid: str = Depends(require_auth),
+    use_case: StoryEngineUseCase = Depends(get_use_case),
+) -> StoryDetailResponse:
+    if token_uid != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token UID does not match requested user_id.",
+        )
+
+    view = use_case.get_story_detail(user_id=user_id, story_id=story_id)
+    if view is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Story '{story_id}' not found for user '{user_id}'.",
+        )
+    return to_story_detail_response(view)
 
 
 @router.get("/story/themes", response_model=list[StoryThemeResponse])

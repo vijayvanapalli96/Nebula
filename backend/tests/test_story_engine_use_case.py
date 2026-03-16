@@ -190,6 +190,7 @@ class FakeUserStoryRepository:
         return [
             UserStoryRecord(
                 story_id="story-fs-1",
+                user_id=user_id,
                 session_id=None,
                 title=f"{user_id} - Neon Debt",
                 genre="Cyberpunk",
@@ -202,8 +203,46 @@ class FakeUserStoryRepository:
                 cover_image="https://example.com/story-fs-1.jpg",
                 last_played_at=utc_now(),
                 status="active",
+                theme_id="theme-cyberpunk",
+                theme_title="Neon Debt",
+                theme_category="Cyberpunk",
+                theme_description="Corporate espionage in a flooded megacity.",
+                question_count=4,
+                questions_generated=["Q1", "Q2"],
+                created_at=utc_now(),
             )
         ]
+
+    def get_by_user_id_and_story_id(
+        self,
+        user_id: str,
+        story_id: str,
+    ) -> UserStoryRecord | None:
+        if story_id == "missing":
+            return None
+        return UserStoryRecord(
+            story_id=story_id,
+            user_id=user_id,
+            session_id=story_id,
+            title="Neon Debt",
+            genre="Cyberpunk",
+            character_name="Kira Voss",
+            archetype="Investigator",
+            last_scene_id="scene_004",
+            updated_at=utc_now(),
+            choices_available=3,
+            progress=70,
+            cover_image="https://example.com/story-fs-1.jpg",
+            last_played_at=utc_now(),
+            status="active",
+            theme_id="theme-cyberpunk",
+            theme_title="Neon Debt",
+            theme_category="Cyberpunk",
+            theme_description="Corporate espionage in a flooded megacity.",
+            question_count=4,
+            questions_generated=["Q1", "Q2"],
+            created_at=utc_now(),
+        )
 
 
 def test_start_story_creates_session_and_opening_scene() -> None:
@@ -394,3 +433,40 @@ def test_list_active_stories_falls_back_to_in_memory_sessions() -> None:
     assert len(result) == 1
     assert result[0].story_id == start.session_id
     assert result[0].session_id == start.session_id
+
+
+def test_get_story_detail_returns_firestore_story_when_available() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        user_story_repository=FakeUserStoryRepository(),
+    )
+
+    result = use_case.get_story_detail(
+        user_id="tmduUAxT4nNHLQDWmKsb9bf58342",
+        story_id="story-fs-1",
+    )
+
+    assert result is not None
+    assert result.story_id == "story-fs-1"
+    assert result.user_id == "tmduUAxT4nNHLQDWmKsb9bf58342"
+    assert result.theme_id == "theme-cyberpunk"
+    assert result.question_count == 4
+    assert result.questions_generated == ["Q1", "Q2"]
+
+
+def test_get_story_detail_returns_none_when_story_missing() -> None:
+    repo = InMemoryStoryStateRepository()
+    use_case = StoryEngineUseCase(
+        repository=repo,
+        generator=FakeGenerator(),
+        user_story_repository=FakeUserStoryRepository(),
+    )
+
+    result = use_case.get_story_detail(
+        user_id="tmduUAxT4nNHLQDWmKsb9bf58342",
+        story_id="missing",
+    )
+
+    assert result is None

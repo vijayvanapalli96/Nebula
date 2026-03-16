@@ -153,6 +153,7 @@ class StoryTheme:
 @dataclass(frozen=True)
 class UserStoryRecord:
     story_id: str
+    user_id: str
     session_id: str | None
     title: str
     genre: str
@@ -165,3 +166,10 @@ class UserStoryRecord:
     cover_image: str | None = None
     last_played_at: datetime | None = None
     status: str | None = None
+    theme_id: str | None = None
+    theme_title: str | None = None
+    theme_category: str | None = None
+    theme_description: str | None = None
+    question_count: int | None = None
+    questions_generated: list[str] = field(default_factory=list)
+    created_at: datetime | None = None

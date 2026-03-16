@@ -49,6 +49,31 @@ class StoryCardView:
 
 
 @dataclass(frozen=True)
+class StoryDetailView:
+    story_id: str
+    user_id: str
+    session_id: str
+    title: str
+    genre: str
+    character_name: str
+    archetype: str
+    last_scene_id: str | None
+    updated_at: datetime
+    choices_available: int
+    progress: int | None = None
+    cover_image: str | None = None
+    last_played_at: datetime | None = None
+    status: str | None = None
+    theme_id: str | None = None
+    theme_title: str | None = None
+    theme_category: str | None = None
+    theme_description: str | None = None
+    question_count: int | None = None
+    questions_generated: list[str] | None = None
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class StoryThemeView:
     id: str
     title: str

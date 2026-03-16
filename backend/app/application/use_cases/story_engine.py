@@ -11,6 +11,7 @@ from app.application.dto.story_results import (
     QuestionsResult,
     StoryActionResult,
     StoryCardView,
+    StoryDetailView,
     StorySceneAssetRefsView,
     StorySceneGenerationStatusView,
     StorySceneLocationView,
@@ -294,6 +295,42 @@ class StoryEngineUseCase:
         )
         return [self._to_story_card_view(state=story) for story in sessions]
 
+    def get_story_detail(self, user_id: str, story_id: str) -> StoryDetailView | None:
+        resolved_user_id = user_id.strip()
+        resolved_story_id = story_id.strip()
+
+        if self._user_story_repository is not None and resolved_user_id and resolved_story_id:
+            record = self._user_story_repository.get_by_user_id_and_story_id(
+                user_id=resolved_user_id,
+                story_id=resolved_story_id,
+            )
+            if record is not None:
+                return self._to_story_detail_view_from_record(record)
+
+        # Fallback for local/dev runs that only have in-memory sessions.
+        fallback_state = self._repository.get(resolved_story_id)
+        if fallback_state is None:
+            return None
+        card = self._to_story_card_view(fallback_state)
+        return StoryDetailView(
+            story_id=card.story_id,
+            user_id=resolved_user_id or "dev-user",
+            session_id=card.session_id,
+            title=card.title,
+            genre=card.genre,
+            character_name=card.character_name,
+            archetype=card.archetype,
+            last_scene_id=card.last_scene_id,
+            updated_at=card.updated_at,
+            choices_available=card.choices_available,
+            progress=card.progress,
+            cover_image=card.cover_image,
+            last_played_at=card.last_played_at,
+            status=card.status,
+            created_at=fallback_state.created_at,
+            theme_category=card.genre,
+        )
+
     def list_story_themes(self) -> list[StoryThemeView]:
         if self._theme_repository is None:
             return []
@@ -391,6 +428,33 @@ class StoryEngineUseCase:
             cover_image=record.cover_image,
             last_played_at=record.last_played_at,
             status=record.status,
+        )
+
+    @staticmethod
+    def _to_story_detail_view_from_record(record: UserStoryRecord) -> StoryDetailView:
+        session_id = (record.session_id or record.story_id).strip()
+        return StoryDetailView(
+            story_id=record.story_id,
+            user_id=record.user_id,
+            session_id=session_id,
+            title=record.title,
+            genre=record.genre,
+            character_name=record.character_name,
+            archetype=record.archetype,
+            last_scene_id=record.last_scene_id,
+            updated_at=record.updated_at,
+            choices_available=record.choices_available,
+            progress=record.progress,
+            cover_image=record.cover_image,
+            last_played_at=record.last_played_at,
+            status=record.status,
+            theme_id=record.theme_id,
+            theme_title=record.theme_title,
+            theme_category=record.theme_category,
+            theme_description=record.theme_description,
+            question_count=record.question_count,
+            questions_generated=record.questions_generated,
+            created_at=record.created_at,
         )
 
     @staticmethod

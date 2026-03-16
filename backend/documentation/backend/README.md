@@ -195,6 +195,20 @@ Returns the authenticated user's stories from Firestore path:
 `/{FIREBASE_USERS_COLLECTION}/{uid}/{FIREBASE_USER_STORIES_SUBCOLLECTION}`.
 If Firestore is not configured, falls back to in-memory sessions.
 
+### `GET /story/{user_id}/{story_id}`
+
+Returns one full story document for the specified user/story from Firestore path:
+`/{FIREBASE_USERS_COLLECTION}/{user_id}/{FIREBASE_USER_STORIES_SUBCOLLECTION}/{story_id}`.
+Requires auth and enforces `token_uid == user_id`.
+
+Response includes card fields plus story metadata fields:
+
+- `story_id`, `user_id`, `session_id`, `title`, `genre`
+- `character_name`, `archetype`, `last_scene_id`
+- `choices_available`, `progress`, `cover_image`, `last_played_at`
+- `status`, `theme_id`, `theme_title`, `theme_category`, `theme_description`
+- `question_count`, `questions_generated`, `created_at`, `updated_at`
+
 ### `GET /story/themes`
 
 Returns active story themes used by the frontend genre carousel.

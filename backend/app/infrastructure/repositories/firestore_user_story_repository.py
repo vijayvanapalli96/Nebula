@@ -33,13 +33,42 @@ class FirestoreUserStoryRepository(UserStoryRepository):
         stories: list[UserStoryRecord] = []
         for doc in docs:
             payload = doc.to_dict() or {}
-            story = _to_user_story_record(document_id=doc.id, payload=payload)
+            story = _to_user_story_record(
+                user_id=user_id,
+                document_id=doc.id,
+                payload=payload,
+            )
             if story is not None:
                 stories.append(story)
         return sorted(stories, key=lambda item: item.updated_at, reverse=True)
 
+    def get_by_user_id_and_story_id(
+        self,
+        user_id: str,
+        story_id: str,
+    ) -> UserStoryRecord | None:
+        doc = (
+            self._client.collection(self._users_collection)
+            .document(user_id)
+            .collection(self._stories_subcollection)
+            .document(story_id)
+            .get()
+        )
+        if not getattr(doc, "exists", False):
+            return None
+        payload = doc.to_dict() or {}
+        return _to_user_story_record(
+            user_id=user_id,
+            document_id=doc.id,
+            payload=payload,
+        )
 
-def _to_user_story_record(document_id: str, payload: dict[str, Any]) -> UserStoryRecord | None:
+
+def _to_user_story_record(
+    user_id: str,
+    document_id: str,
+    payload: dict[str, Any],
+) -> UserStoryRecord | None:
     story_id = _first_non_empty(payload, "storyId", "story_id", default=document_id)
     title = _first_non_empty(payload, "title", "storyTitle", "name", "themeTitle")
     if not story_id:
@@ -94,12 +123,27 @@ def _to_user_story_record(document_id: str, payload: dict[str, Any]) -> UserStor
             payload.get("updated_at", payload.get("lastPlayedAt", payload.get("last_played_at"))),
         )
     )
+    created_at = _to_datetime_or_none(
+        payload.get("createdAt", payload.get("created_at"))
+    )
     last_played_at = _to_datetime_or_none(
         payload.get("lastPlayedAt", payload.get("last_played_at"))
     ) or updated_at
 
+    questions_generated = _to_string_list(
+        payload.get("questionsGenerated", payload.get("questions_generated", [])),
+    )
+    theme_title = _first_non_empty(payload, "themeTitle", "title", "storyTitle", "name") or None
+    question_count = _optional_int(
+        payload.get(
+            "questionCount",
+            payload.get("question_count", payload.get("choicesAvailable")),
+        ),
+    )
+
     return UserStoryRecord(
         story_id=story_id,
+        user_id=_first_non_empty(payload, "userId", "user_id", default=user_id),
         session_id=session_id,
         title=title,
         genre=genre,
@@ -112,6 +156,19 @@ def _to_user_story_record(document_id: str, payload: dict[str, Any]) -> UserStor
         cover_image=cover_image,
         last_played_at=last_played_at,
         status=_first_non_empty(payload, "status") or None,
+        theme_id=_first_non_empty(payload, "themeId", "theme_id") or None,
+        theme_title=theme_title,
+        theme_category=_first_non_empty(payload, "themeCategory", "theme_category", "genre") or None,
+        theme_description=_first_non_empty(
+            payload,
+            "themeDescription",
+            "theme_description",
+            "description",
+        )
+        or None,
+        question_count=question_count,
+        questions_generated=questions_generated,
+        created_at=created_at,
     )
 
 
@@ -161,6 +218,15 @@ def _optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _to_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value is None:
+        return []
+    text = str(value).strip()
+    return [text] if text else []
 
 
 def _first_non_empty(payload: dict[str, Any], *keys: str, default: str = "") -> str:

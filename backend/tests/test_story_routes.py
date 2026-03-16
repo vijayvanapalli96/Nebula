@@ -10,6 +10,7 @@ from app.application.dto.story_results import (
     QuestionsResult,
     StoryActionResult,
     StoryCardView,
+    StoryDetailView,
     StorySceneAssetRefsView,
     StorySceneGenerationStatusView,
     StorySceneLocationView,
@@ -44,6 +45,7 @@ def _scene(scene_id: str, chapter: int) -> Scene:
 class FakeUseCase:
     def __init__(self) -> None:
         self.last_user_id: str | None = None
+        self.last_story_detail_request: tuple[str, str] | None = None
 
     async def generate_questions(self, command):  # noqa: ANN001
         return QuestionsResult(
@@ -205,6 +207,37 @@ class FakeUseCase:
             )
         ]
 
+    def get_story_detail(self, user_id: str, story_id: str) -> StoryDetailView | None:
+        self.last_story_detail_request = (user_id, story_id)
+        if story_id == "missing":
+            return None
+        return StoryDetailView(
+            story_id=story_id,
+            user_id=user_id,
+            session_id=story_id,
+            title="The Last Detective",
+            genre="crime",
+            character_name="Kira Voss",
+            archetype="Investigator",
+            last_scene_id="scene_010",
+            updated_at=datetime.now(UTC),
+            choices_available=4,
+            progress=65,
+            cover_image="https://example.com/last-detective.png",
+            last_played_at=datetime.now(UTC),
+            status="questions_generated",
+            theme_id="theme-crime",
+            theme_title="The Last Detective",
+            theme_category="crime",
+            theme_description="A neon mystery unfolds in the rain.",
+            question_count=4,
+            questions_generated=[
+                "What drives the hero?",
+                "Who can be trusted?",
+            ],
+            created_at=datetime.now(UTC),
+        )
+
 
 @pytest.fixture
 def client() -> TestClient:
@@ -280,6 +313,34 @@ def test_list_story_scenes_route_returns_scenes(client: TestClient) -> None:
     assert body[0]["scene_id"] == "scene_001"
     assert body[0]["story_id"] == "story_123"
     assert body[0]["location"]["name"] == "Skyline Rooftop"
+
+
+def test_story_detail_route_returns_full_story_payload(client: TestClient) -> None:
+    response = client.get("/story/test-user/story-1")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["story_id"] == "story-1"
+    assert body["user_id"] == "test-user"
+    assert body["title"] == "The Last Detective"
+    assert body["theme_id"] == "theme-crime"
+    assert body["theme_description"]
+    assert body["question_count"] == 4
+    assert len(body["questions_generated"]) == 2
+    assert client.app.state.fake_use_case.last_story_detail_request == ("test-user", "story-1")
+
+
+def test_story_detail_route_rejects_uid_mismatch(client: TestClient) -> None:
+    client.app.dependency_overrides[require_auth] = lambda: "another-user"
+    response = client.get("/story/test-user/story-1")
+    assert response.status_code == 403
+    assert "does not match" in response.json()["detail"].lower()
+    client.app.dependency_overrides[require_auth] = lambda: "test-user"
+
+
+def test_story_detail_route_returns_404_when_story_missing(client: TestClient) -> None:
+    response = client.get("/story/test-user/missing")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
 
 
 def test_generate_questions_route_returns_questions(client: TestClient) -> None:

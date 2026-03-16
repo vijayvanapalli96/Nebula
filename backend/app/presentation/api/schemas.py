@@ -11,6 +11,7 @@ from app.application.dto.story_results import (
     QuestionsResult,
     StoryActionResult,
     StoryCardView,
+    StoryDetailView,
     StorySceneView,
     StoryStartResult,
     StoryThemeView,
@@ -98,6 +99,30 @@ class StoryCardResponse(BaseModel):
     cover_image: str | None = None
     last_played_at: datetime | None = None
     status: str | None = None
+
+
+class StoryDetailResponse(BaseModel):
+    story_id: str
+    user_id: str
+    session_id: str
+    title: str
+    genre: str
+    character_name: str
+    archetype: str
+    last_scene_id: str | None = None
+    updated_at: datetime
+    choices_available: int = 0
+    progress: int | None = None
+    cover_image: str | None = None
+    last_played_at: datetime | None = None
+    status: str | None = None
+    theme_id: str | None = None
+    theme_title: str | None = None
+    theme_category: str | None = None
+    theme_description: str | None = None
+    question_count: int | None = None
+    questions_generated: list[str] = Field(default_factory=list)
+    created_at: datetime | None = None
 
 
 class StoryThemeResponse(BaseModel):
@@ -246,6 +271,32 @@ def to_story_card_response(view: StoryCardView) -> StoryCardResponse:
         cover_image=view.cover_image,
         last_played_at=view.last_played_at,
         status=view.status,
+    )
+
+
+def to_story_detail_response(view: StoryDetailView) -> StoryDetailResponse:
+    return StoryDetailResponse(
+        story_id=view.story_id,
+        user_id=view.user_id,
+        session_id=view.session_id,
+        title=view.title,
+        genre=view.genre,
+        character_name=view.character_name,
+        archetype=view.archetype,
+        last_scene_id=view.last_scene_id,
+        updated_at=view.updated_at,
+        choices_available=view.choices_available,
+        progress=view.progress,
+        cover_image=view.cover_image,
+        last_played_at=view.last_played_at,
+        status=view.status,
+        theme_id=view.theme_id,
+        theme_title=view.theme_title,
+        theme_category=view.theme_category,
+        theme_description=view.theme_description,
+        question_count=view.question_count,
+        questions_generated=view.questions_generated or [],
+        created_at=view.created_at,
     )
 
 
