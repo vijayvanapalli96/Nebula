@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import StoryCarousel from '../features/stories/StoryCarousel';
 import GenreCarousel from '../features/stories/GenreCarousel';
 import CreateStoryModal from '../features/stories/CreateStoryModal';
-import { fetchStoryThemes } from '../api/storyApi';
-import { FALLBACK_GENRES, useStoryStore } from '../store/storyStore';
+import { useStoryStore } from '../store/storyStore';
+import { useStoryThemeStore } from '../store/storyThemeStore';
 
 // ── Quick stat card ────────────────────────────────────────────────────────
 const StatCard: React.FC<{ label: string; value: number | string; accent?: string }> = ({
@@ -60,29 +61,15 @@ const fadeUp = {
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 const DashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const stories = useStoryStore((s) => s.stories);
-  const genres  = useStoryStore((s) => s.genres);
-  const setGenres = useStoryStore((s) => s.setGenres);
+  const { featuredThemes, themes, fetchThemes } = useStoryThemeStore();
 
+  // Fallback: fetch if the user lands here without going through /loading
   useEffect(() => {
-    let isMounted = true;
-    fetchStoryThemes()
-      .then((themes) => {
-        if (!isMounted) return;
-        if (themes.length > 0) {
-          setGenres(themes);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setGenres(FALLBACK_GENRES);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [setGenres]);
+    fetchThemes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const hour = new Date().getHours();
   const greeting =
@@ -126,7 +113,7 @@ const DashboardPage: React.FC = () => {
         >
           <StatCard label="In Progress" value={inProgress} accent="#8b5cf6" />
           <StatCard label="Completed"   value={completed}  accent="#34d399" />
-          <StatCard label="Genres"      value={genres.length} accent="#60a5fa" />
+          <StatCard label="Worlds"      value={themes.length} accent="#60a5fa" />
         </motion.div>
 
         {/* ── Continue Your Stories ── */}
@@ -168,8 +155,16 @@ const DashboardPage: React.FC = () => {
             eyebrow="Choose your world"
             title="Start a New Story"
             eyebrowColor="text-blue-400"
+            action={
+              <button
+                onClick={() => navigate('/explore')}
+                className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition whitespace-nowrap"
+              >
+                Explore All Worlds →
+              </button>
+            }
           />
-          <GenreCarousel genres={genres} />
+          <GenreCarousel genres={featuredThemes} />
         </motion.section>
 
         {/* bottom padding */}

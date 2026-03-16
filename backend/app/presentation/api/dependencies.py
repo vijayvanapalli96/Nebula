@@ -251,6 +251,19 @@ async def require_auth(authorization: str = Header(default="")) -> str:
         # or at router level:
         APIRouter(dependencies=[Depends(require_auth)])
     """
+    # Dev-mode bypass: skip Firebase token verification in development.
+    settings = get_settings()
+    if settings.app_env == "development":
+        if not authorization or not authorization.startswith("Bearer "):
+            return "dev-user"
+        id_token = authorization[7:]
+        try:
+            ensure_initialized()
+            decoded = admin_auth.verify_id_token(id_token)
+            return decoded["uid"]
+        except Exception:
+            return "dev-user"
+
     # Ensure Firebase Admin app is initialised before calling verify_id_token.
     # Wrapped in try/except so any credential/init failure returns a clean 503
     # rather than an unhandled exception (which Cloud Run logs as 502).

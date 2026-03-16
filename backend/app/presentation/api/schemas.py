@@ -155,6 +155,7 @@ class GenerateQuestionsRequest(BaseModel):
 class QuestionOptionResponse(BaseModel):
     text: str = Field(..., min_length=1, description="Option text.")
     image_prompt: str = Field(..., description="Prompt used to generate the option image.")
+    image_uri: str | None = Field(default=None, description="GCS signed URL for the generated image.")
 
 
 class QuestionResponse(BaseModel):
@@ -165,7 +166,6 @@ class QuestionResponse(BaseModel):
 class GenerateQuestionsResponse(BaseModel):
     theme: str
     questions: list[QuestionResponse] = Field(..., min_length=1)
-    media_request_id: str | None = Field(default=None, description="Poll /story/media/{id} for image URIs.")
 
 
 class AnswerInput(BaseModel):
@@ -376,21 +376,21 @@ def to_opening_scene_response(
     )
 
 
-def to_questions_response(
-    result: QuestionsResult,
-    media_request_id: str | None = None,
-) -> GenerateQuestionsResponse:
+def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
     return GenerateQuestionsResponse(
         theme=result.theme,
         questions=[
             QuestionResponse(
                 question=q.question,
                 options=[
-                    QuestionOptionResponse(text=opt.text, image_prompt=opt.image_prompt)
+                    QuestionOptionResponse(
+                        text=opt.text,
+                        image_prompt=opt.image_prompt,
+                        image_uri=opt.image_uri,
+                    )
                     for opt in q.options
                 ],
             )
             for q in result.questions
         ],
-        media_request_id=media_request_id,
     )

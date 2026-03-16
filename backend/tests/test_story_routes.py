@@ -49,37 +49,37 @@ class FakeUseCase:
                 InitialQuestion(
                     question="What color is the sky?",
                     options=[
-                        QuestionOption(text="Red", image_prompt="red sky"),
-                        QuestionOption(text="Blue", image_prompt="blue sky"),
-                        QuestionOption(text="Green", image_prompt="green sky"),
-                        QuestionOption(text="Black", image_prompt="black sky"),
+                        QuestionOption(text="Red", image_prompt="red sky", image_uri="https://storage.googleapis.com/red-sky.png"),
+                        QuestionOption(text="Blue", image_prompt="blue sky", image_uri="https://storage.googleapis.com/blue-sky.png"),
+                        QuestionOption(text="Green", image_prompt="green sky", image_uri="https://storage.googleapis.com/green-sky.png"),
+                        QuestionOption(text="Black", image_prompt="black sky", image_uri="https://storage.googleapis.com/black-sky.png"),
                     ],
                 ),
                 InitialQuestion(
                     question="What drives the hero?",
                     options=[
-                        QuestionOption(text="Revenge", image_prompt="fire fist"),
-                        QuestionOption(text="Curiosity", image_prompt="glowing book"),
-                        QuestionOption(text="Love", image_prompt="two hearts"),
-                        QuestionOption(text="Duty", image_prompt="knight kneeling"),
+                        QuestionOption(text="Revenge", image_prompt="fire fist", image_uri="https://storage.googleapis.com/fire-fist.png"),
+                        QuestionOption(text="Curiosity", image_prompt="glowing book", image_uri="https://storage.googleapis.com/glowing-book.png"),
+                        QuestionOption(text="Love", image_prompt="two hearts", image_uri="https://storage.googleapis.com/two-hearts.png"),
+                        QuestionOption(text="Duty", image_prompt="knight kneeling", image_uri="https://storage.googleapis.com/knight-kneeling.png"),
                     ],
                 ),
                 InitialQuestion(
                     question="What lurks in the shadows?",
                     options=[
-                        QuestionOption(text="Ghosts", image_prompt="ghosts"),
-                        QuestionOption(text="Machines", image_prompt="machines"),
-                        QuestionOption(text="Beasts", image_prompt="beasts"),
-                        QuestionOption(text="Nothing", image_prompt="void"),
+                        QuestionOption(text="Ghosts", image_prompt="ghosts", image_uri="https://storage.googleapis.com/ghosts.png"),
+                        QuestionOption(text="Machines", image_prompt="machines", image_uri="https://storage.googleapis.com/machines.png"),
+                        QuestionOption(text="Beasts", image_prompt="beasts", image_uri="https://storage.googleapis.com/beasts.png"),
+                        QuestionOption(text="Nothing", image_prompt="void", image_uri="https://storage.googleapis.com/void.png"),
                     ],
                 ),
                 InitialQuestion(
                     question="How does the story end?",
                     options=[
-                        QuestionOption(text="In flames", image_prompt="flames"),
-                        QuestionOption(text="With a whisper", image_prompt="mist"),
-                        QuestionOption(text="With a dance", image_prompt="dance"),
-                        QuestionOption(text="Silently", image_prompt="silence"),
+                        QuestionOption(text="In flames", image_prompt="flames", image_uri="https://storage.googleapis.com/flames.png"),
+                        QuestionOption(text="With a whisper", image_prompt="mist", image_uri="https://storage.googleapis.com/mist.png"),
+                        QuestionOption(text="With a dance", image_prompt="dance", image_uri="https://storage.googleapis.com/dance.png"),
+                        QuestionOption(text="Silently", image_prompt="silence", image_uri="https://storage.googleapis.com/silence.png"),
                     ],
                 ),
             ],
@@ -118,9 +118,6 @@ class FakeUseCase:
                 ],
             ),
         )
-
-    def fire_questions_media(self, questions):  # noqa: ANN001
-        return None
 
     def fire_opening_scene_media(self, scene):  # noqa: ANN001
         return None
@@ -279,6 +276,7 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["theme"] == "Cyberpunk Noir"
+    assert "media_request_id" not in body
     assert len(body["questions"]) == 4
     for q in body["questions"]:
         assert "question" in q
@@ -286,6 +284,9 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
         for opt in q["options"]:
             assert "text" in opt
             assert "image_prompt" in opt
+            assert "image_uri" in opt
+            assert opt["image_uri"] is not None
+            assert opt["image_uri"].startswith("https://")
 
 
 def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:

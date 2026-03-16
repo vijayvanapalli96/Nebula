@@ -51,54 +51,67 @@ class StoryEngineUseCase:
         self._media_tracker = media_tracker
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
+        """Generate questions then generate all option images inline (awaited)."""
         questions = await self._generator.generate_initial_questions(command.theme.strip())
+
+        # Generate all option images in parallel and attach URIs directly.
+        if self._image_storage is not None:
+            await self._generate_question_images(questions)
+
         return QuestionsResult(theme=command.theme.strip(), questions=questions)
 
-    def fire_questions_media(self, questions: list) -> str | None:  # noqa: ANN001
-        """Register question-option images as a media request and kick off background generation.
+    async def _generate_question_images(self, questions: list) -> None:  # noqa: ANN001
+        """Generate a 2x2 grid image per question, crop quadrants, upload each to GCS.
 
-        Returns ``media_request_id`` (or ``None`` if storage is unavailable).
+        This reduces Imagen calls from 16 (one per option) to 4 (one per question).
         """
-        if self._image_storage is None or self._media_tracker is None:
-            return None
+        from io import BytesIO
 
-        assets: list[AssetState] = []
-        for qi, q in enumerate(questions):
-            for oi, opt in enumerate(q.options):
-                if opt.image_prompt:
-                    assets.append(AssetState(
-                        asset_key=f"q{qi}_opt{oi}_image",
-                        asset_type="image",
-                        prompt=opt.image_prompt,
-                    ))
+        from PIL import Image
 
-        if not assets:
-            return None
+        async def _process_question(question) -> None:  # noqa: ANN001
+            options = question.options
+            prompts = [opt.image_prompt or "" for opt in options]
 
-        request_id = self._media_tracker.create_request(assets)
-        asyncio.create_task(self._run_questions_media(request_id, questions))
-        return request_id
+            # Pad to exactly 4 prompts (should already be 4)
+            while len(prompts) < 4:
+                prompts.append(prompts[-1] if prompts else "blank")
 
-    async def _run_questions_media(self, request_id: str, questions: list) -> None:  # noqa: ANN001
-        """Background coroutine: generate all question-option images in parallel."""
-
-        async def _process(qi: int, oi: int, prompt: str) -> None:
-            asset_key = f"q{qi}_opt{oi}_image"
             try:
-                image_bytes = await self._generator.generate_option_image(prompt)
-                path = f"question-options/{uuid4()}.png"
-                uri = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
-                self._media_tracker.mark_completed(request_id, asset_key, uri)  # type: ignore[union-attr]
-            except Exception as exc:
-                self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
+                grid_bytes = await self._generator.generate_option_image_grid(prompts[:4])
+            except Exception:
+                logger.exception("Failed to generate grid for question: %s", question.text)
+                return
 
-        tasks = [
-            _process(qi, oi, opt.image_prompt)
-            for qi, q in enumerate(questions)
-            for oi, opt in enumerate(q.options)
-            if opt.image_prompt
-        ]
-        await asyncio.gather(*tasks)
+            # Crop the grid into 4 quadrants
+            try:
+                grid_img = Image.open(BytesIO(grid_bytes))
+                w, h = grid_img.size
+                mid_x, mid_y = w // 2, h // 2
+                quadrants = [
+                    grid_img.crop((0, 0, mid_x, mid_y)),          # top-left
+                    grid_img.crop((mid_x, 0, w, mid_y)),          # top-right
+                    grid_img.crop((0, mid_y, mid_x, h)),          # bottom-left
+                    grid_img.crop((mid_x, mid_y, w, h)),          # bottom-right
+                ]
+            except Exception:
+                logger.exception("Failed to crop grid image")
+                return
+
+            # Upload each quadrant and assign URI to matching option
+            for idx, opt in enumerate(options[:4]):
+                try:
+                    buf = BytesIO()
+                    quadrants[idx].save(buf, format="PNG")
+                    img_bytes = buf.getvalue()
+                    path = f"question-options/{uuid4()}.png"
+                    uri = await self._image_storage.upload_image(img_bytes, path)  # type: ignore[union-attr]
+                    opt.image_uri = uri
+                except Exception:
+                    logger.exception("Failed to upload cropped quadrant %d", idx)
+
+        await asyncio.gather(*[_process_question(q) for q in questions])
+
     async def generate_opening_scene(self, command: GenerateOpeningSceneCommand) -> OpeningSceneResult:
         answers_tuples = [(a.question, a.answer) for a in command.answers]
         scene = await self._generator.generate_opening_scene_from_answers(
