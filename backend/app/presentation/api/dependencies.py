@@ -196,29 +196,6 @@ def get_user_story_repository() -> UserStoryRepository | None:
     return _get_user_story_repository_singleton()
 
 
-def get_use_case(
-    repository: StoryStateRepository = Depends(get_repository),
-    generator: StoryGeneratorPort = Depends(get_ai_generator),
-    image_storage: ImageStoragePort | None = Depends(get_image_storage),
-    video_generator: VideoGeneratorPort = Depends(get_video_generator),
-    theme_repository: StoryThemeRepository = Depends(get_story_theme_repository),
-    story_doc_repository: StoryDocumentRepository = Depends(get_story_document_repository),
-    get_theme_use_case: GetThemeUseCase = Depends(get_get_theme_use_case),
-) -> StoryEngineUseCase:
-    return StoryEngineUseCase(
-        repository=repository,
-        generator=generator,
-        image_storage=image_storage,
-        video_generator=video_generator,
-        theme_repository=theme_repository,
-        scene_repository=scene_repository,
-        user_story_repository=user_story_repository,
-        media_tracker=get_media_tracker(),
-        story_doc_repository=story_doc_repository,
-        get_theme_use_case=get_theme_use_case,
-    )
-
-
 def get_project_repository() -> ProjectRepository:
     return _project_repository
 
@@ -330,6 +307,31 @@ def get_get_theme_use_case(
     theme_detail_repository: ThemeDetailRepository = Depends(get_theme_detail_repository),
 ) -> GetThemeUseCase:
     return GetThemeUseCase(repository=theme_detail_repository)
+
+
+def get_use_case(
+    repository: StoryStateRepository = Depends(get_repository),
+    generator: StoryGeneratorPort = Depends(get_ai_generator),
+    image_storage: ImageStoragePort | None = Depends(get_image_storage),
+    video_generator: VideoGeneratorPort = Depends(get_video_generator),
+    theme_repository: StoryThemeRepository = Depends(get_story_theme_repository),
+    scene_repository: StorySceneRepository = Depends(get_story_scene_repository),
+    user_story_repository: UserStoryRepository | None = Depends(get_user_story_repository),
+    story_doc_repository: StoryDocumentRepository = Depends(get_story_document_repository),
+    get_theme: GetThemeUseCase = Depends(get_get_theme_use_case),
+) -> StoryEngineUseCase:
+    return StoryEngineUseCase(
+        repository=repository,
+        generator=generator,
+        image_storage=image_storage,
+        video_generator=video_generator,
+        theme_repository=theme_repository,
+        scene_repository=scene_repository,
+        user_story_repository=user_story_repository,
+        media_tracker=get_media_tracker(),
+        story_doc_repository=story_doc_repository,
+        get_theme_use_case=get_theme,
+    )
 
 
 def get_create_story_use_case(

@@ -1,10 +1,10 @@
 import React, { useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import StoryCard from './StoryCard';
-import type { Story } from '../../types/story';
+import type { UserStory } from '../../types/story';
 
 interface StoryCarouselProps {
-  stories: Story[];
+  stories: UserStory[];
 }
 
 const StoryCarousel: React.FC<StoryCarouselProps> = ({ stories }) => {
@@ -44,7 +44,7 @@ const StoryCarousel: React.FC<StoryCarouselProps> = ({ stories }) => {
       >
         {stories.map((story) => (
           <motion.div
-            key={story.id}
+            key={story.story_id}
             role="listitem"
             style={{ scrollSnapAlign: 'start' }}
             initial={{ opacity: 0, y: 20 }}

@@ -36,6 +36,7 @@ class FirestoreStoryDocumentRepository:
                 "themeTitle": doc.theme_title,
                 "themeCategory": doc.theme_category,
                 "themeDescription": doc.theme_description,
+                "themeImageUrl": doc.theme_image_url,
                 "status": doc.status,
                 "createdAt": doc.created_at,
                 "updatedAt": doc.updated_at,
@@ -139,6 +140,26 @@ class FirestoreStoryDocumentRepository:
                 "createdAt": datetime.now(UTC),
             })
         )
+
+    def get_scene(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+    ) -> dict | None:
+        """Read a scene document. Returns the raw dict or None if not found."""
+        snap = (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+            .collection("scenes")
+            .document(scene_id)
+            .get()
+        )
+        if not snap.exists:
+            return None
+        return snap.to_dict() or {}
 
     def update_scene_choice_media(
         self,

@@ -1,6 +1,6 @@
 import { auth } from '../lib/firebase';
 import type { Question, QuestionOption } from '../store/storyCreationStore';
-import type { Genre } from '../types/story';
+import type { Genre, UserStory } from '../types/story';
 import type { Scene } from '../store/storySessionStore';
 
 export interface StoryQuestionsResponse {
@@ -197,4 +197,39 @@ export async function fetchStoryOpening(payload: StoryOpeningRequest): Promise<S
   }
 
   return res.json() as Promise<Scene>;
+}
+
+/**
+ * GET /story/media/{mediaRequestId}
+ * Returns asset_key → GCS object path (or null if still generating).
+ * Convert paths to URLs with gcsPathToUrl() from utils/gcs.ts.
+ */
+export async function fetchMediaStatus(
+  mediaRequestId: string,
+): Promise<Record<string, string | null>> {
+  const res = await fetch(`${BASE_URL}/story/media/${mediaRequestId}`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch media status: ${res.status} ${res.statusText}`);
+  }
+
+  const data = (await res.json()) as { request_id: string; assets: Record<string, string | null> };
+  return data.assets;
+}
+
+/** GET /stories/me — returns all stories owned by the current user. */
+export async function fetchUserStories(): Promise<UserStory[]> {
+  const res = await fetch(`${BASE_URL}/stories/me`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch stories: ${res.status} ${res.statusText}`);
+  }
+
+  return res.json() as Promise<UserStory[]>;
 }

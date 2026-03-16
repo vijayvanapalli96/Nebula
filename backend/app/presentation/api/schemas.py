@@ -107,6 +107,9 @@ class StoryCardResponse(BaseModel):
     cover_image: str | None = None
     last_played_at: datetime | None = None
     status: str | None = None
+    theme_id: str | None = None
+    theme_title: str | None = None
+    theme_description: str | None = None
 
 
 class StoryDetailResponse(BaseModel):
@@ -216,8 +219,8 @@ class AnswerInput(BaseModel):
 
 
 class OpeningSceneRequest(BaseModel):
-    story_id: str = Field(..., min_length=1, description="Story document id from /story/questions.")
-    theme_id: str = Field(..., min_length=1, description="Firestore theme document id.")
+    story_id: str = Field(..., description="Story document id from /story/questions.")
+    theme_id: str = Field(..., description="Firestore theme document id.")
     character_name: str = Field(..., min_length=1, description="Player character name.")
     answers: list[AnswerInput] = Field(..., min_length=1, description="Answered questions.")
     custom_input: str = Field(default="", description="Free-text character customisation.")
@@ -239,15 +242,20 @@ class OpeningSceneResponse(BaseModel):
     scene_description: str
     video_prompt: str = Field(default="", description="Prompt for the opening scene video.")
     choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
-    media_request_id: str | None = Field(default=None, description="Poll /story/media/{id} for media URIs.")
 
 
-class MediaResponse(BaseModel):
-    """Simple map of asset_key → GCS URI (null if not ready yet)."""
-    request_id: str
-    assets: dict[str, str | None] = Field(
-        ..., description="Map of asset key to GCS signed URL. null if still generating.",
-    )
+class ChoiceMediaItem(BaseModel):
+    """Media paths for a single choice, read directly from Firestore."""
+    choice_id: str
+    image_url: str | None = None   # GCS object path, convert with gcsPathToUrl() on the frontend
+    video_url: str | None = None   # GCS object path, convert with gcsPathToUrl() on the frontend
+
+
+class SceneMediaResponse(BaseModel):
+    """All choice media paths for a scene, keyed by choice_id."""
+    story_id: str
+    scene_id: str
+    choices: list[ChoiceMediaItem]
 
 
 def to_start_command(request: StoryStartRequest) -> StartStoryCommand:
@@ -286,6 +294,9 @@ def to_story_card_response(view: StoryCardView) -> StoryCardResponse:
         cover_image=view.cover_image,
         last_played_at=view.last_played_at,
         status=view.status,
+        theme_id=view.theme_id,
+        theme_title=view.theme_title,
+        theme_description=view.theme_description,
     )
 
 
@@ -472,7 +483,6 @@ def to_opening_scene_command(request: OpeningSceneRequest) -> GenerateOpeningSce
 
 def to_opening_scene_response(
     result: OpeningSceneResult,
-    media_request_id: str | None = None,
 ) -> OpeningSceneResponse:
     return OpeningSceneResponse(
         story_id=result.story_id,
@@ -491,7 +501,6 @@ def to_opening_scene_response(
             )
             for c in result.scene.choices
         ],
-        media_request_id=media_request_id,
     )
 
 

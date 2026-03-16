@@ -62,12 +62,13 @@ const fadeUp = {
 // ─── Page ─────────────────────────────────────────────────────────────────
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const stories = useStoryStore((s) => s.stories);
+  const { userStories, featuredUserStories, fetchUserStories } = useStoryStore();
   const { featuredThemes, themes, fetchThemes } = useStoryThemeStore();
 
   // Fallback: fetch if the user lands here without going through /loading
   useEffect(() => {
     fetchThemes();
+    fetchUserStories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -75,8 +76,8 @@ const DashboardPage: React.FC = () => {
   const greeting =
     hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
-  const inProgress = stories.filter((s) => s.progress > 0 && s.progress < 100).length;
-  const completed  = stories.filter((s) => s.progress === 100).length;
+  const inProgress = userStories.filter((s) => s.status === 'active' || s.status === 'opening_scene_ready').length;
+  const completed  = userStories.filter((s) => s.status === 'completed').length;
 
   return (
     <DashboardLayout title="Dashboard">
@@ -99,7 +100,9 @@ const DashboardPage: React.FC = () => {
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {inProgress > 0
               ? `You have ${inProgress} ${inProgress === 1 ? 'story' : 'stories'} in progress.`
-              : 'Ready to begin a new adventure?'}
+              : userStories.length > 0
+              ? 'All caught up! Ready to start a new adventure?'
+              : 'Ready to begin your first adventure?'}
           </p>
         </motion.div>
 
@@ -130,15 +133,17 @@ const DashboardPage: React.FC = () => {
             eyebrow="Pick up where you left off"
             title="Continue Your Stories"
             action={
-              <a
-                href="#"
-                className="text-xs font-semibold text-violet-400 hover:text-violet-300 transition whitespace-nowrap"
-              >
-                View all →
-              </a>
+              userStories.length > 4 ? (
+                <button
+                  onClick={() => navigate('/my-stories')}
+                  className="text-xs font-semibold text-violet-400 hover:text-violet-300 transition whitespace-nowrap"
+                >
+                  View all →
+                </button>
+              ) : null
             }
           />
-          <StoryCarousel stories={stories} />
+          <StoryCarousel stories={featuredUserStories} />
         </motion.section>
 
         {/* ── Start a New Story ── */}

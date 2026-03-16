@@ -16,6 +16,7 @@ class ThemeDetail:
     title: str
     category: str
     description: str
+    image_url: str = ""
     default_tone_tags: tuple[str, ...] = field(default_factory=tuple)
     prompt_hints: PromptHints = field(default_factory=PromptHints)
     is_active: bool = True

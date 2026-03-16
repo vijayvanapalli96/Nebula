@@ -7,6 +7,10 @@ export interface Choice {
   choice_id: string;
   choice_text: string;
   direction_hint: string;
+  /** GCS object path — convert to URL with gcsPathToUrl() from utils/gcs.ts */
+  image_url?: string | null;
+  /** GCS object path — convert to URL with gcsPathToUrl() from utils/gcs.ts */
+  video_url?: string | null;
 }
 
 export interface Scene {
@@ -46,6 +50,11 @@ interface StorySessionState {
 
   setScene: (scene: Scene) => void;
   selectChoice: (choiceId: string) => void;
+  /**
+   * Merge media assets from /story/media polling into the current scene's choices.
+   * @param assets Record<asset_key, gcs_path | null> e.g. { choice_A_image: "uid/story/.../A/image.png" }
+   */
+  updateChoiceMedia: (assets: Record<string, string | null>) => void;
   reset: () => void;
 }
 
@@ -121,6 +130,21 @@ export const useStorySessionStore = create<StorySessionState>((set, get) => ({
     });
     set({ selectedChoice: choiceId, graphNodes: nodes });
   },
+
+  updateChoiceMedia: (assets) =>
+    set((state) => {
+      if (!state.currentScene) return state;
+      const choices = state.currentScene.choices.map((c) => {
+        const imgPath = assets[`choice_${c.choice_id}_image`];
+        const vidPath = assets[`choice_${c.choice_id}_video`];
+        return {
+          ...c,
+          ...(imgPath !== undefined ? { image_url: imgPath } : {}),
+          ...(vidPath !== undefined ? { video_url: vidPath } : {}),
+        };
+      });
+      return { currentScene: { ...state.currentScene, choices } };
+    }),
 
   reset: () => set({ currentScene: null, selectedChoice: null, graphNodes: [], graphEdges: [] }),
 }));

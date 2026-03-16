@@ -99,6 +99,16 @@ async def generate_opening_scene(
     user_id: str = Depends(require_auth),
     use_case: StoryEngineUseCase = Depends(get_use_case),
 ) -> OpeningSceneResponse:
+    if not request.story_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="story_id is required. Make sure /story/questions completed successfully before calling /story/opening.",
+        )
+    if not request.theme_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="theme_id is required.",
+        )
     try:
         result = await use_case.generate_opening_scene(
             command=to_opening_scene_command(request),
