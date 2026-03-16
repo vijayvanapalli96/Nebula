@@ -6,6 +6,10 @@ class InvalidChoiceError(ValueError):
     pass
 
 
+class ThemeNotFoundError(ValueError):
+    pass
+
+
 class StoryGenerationError(RuntimeError):
     pass
 

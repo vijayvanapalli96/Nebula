@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.application.dto.story_results import (
+    GenerateStoryQuestionsResult,
     OpeningSceneResult,
     QuestionsResult,
     StoryActionResult,
@@ -21,7 +22,11 @@ from app.application.dto.story_results import (
 from app.application.errors import SessionNotFoundError
 from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata
 from app.main import create_app
-from app.presentation.api.dependencies import get_use_case, require_auth
+from app.presentation.api.dependencies import (
+    get_generate_story_questions_use_case,
+    get_use_case,
+    require_auth,
+)
 
 
 def _scene(scene_id: str, chapter: int) -> Scene:
@@ -239,14 +244,37 @@ class FakeUseCase:
         )
 
 
+class FakeGenerateStoryQuestionsUseCase:
+    async def execute(self, user_id: str, theme_id: str) -> GenerateStoryQuestionsResult:
+        return GenerateStoryQuestionsResult(
+            story_id="story-generated-1",
+            theme=theme_id,
+            questions=[
+                InitialQuestion(
+                    question_id="q_1",
+                    question="What color is the sky?",
+                    options=[
+                        QuestionOption(text="Red", image_prompt="red sky", image_uri="https://storage.googleapis.com/red-sky.png"),
+                        QuestionOption(text="Blue", image_prompt="blue sky", image_uri="https://storage.googleapis.com/blue-sky.png"),
+                        QuestionOption(text="Green", image_prompt="green sky", image_uri="https://storage.googleapis.com/green-sky.png"),
+                        QuestionOption(text="Black", image_prompt="black sky", image_uri="https://storage.googleapis.com/black-sky.png"),
+                    ],
+                )
+            ],
+        )
+
+
 @pytest.fixture
 def client() -> TestClient:
     app = create_app()
     fake_use_case = FakeUseCase()
+    fake_questions_use_case = FakeGenerateStoryQuestionsUseCase()
     app.dependency_overrides[get_use_case] = lambda: fake_use_case
+    app.dependency_overrides[get_generate_story_questions_use_case] = lambda: fake_questions_use_case
     app.dependency_overrides[require_auth] = lambda: "test-user"
     with TestClient(app) as test_client:
         test_client.app.state.fake_use_case = fake_use_case
+        test_client.app.state.fake_questions_use_case = fake_questions_use_case
         yield test_client
     app.dependency_overrides.clear()
 
@@ -346,16 +374,18 @@ def test_story_detail_route_returns_404_when_story_missing(client: TestClient) -
 def test_generate_questions_route_returns_questions(client: TestClient) -> None:
     response = client.post(
         "/story/questions",
-        json={"theme": "Cyberpunk Noir"},
+        json={"theme_id": "genre-noir"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     body = response.json()
-    assert body["theme"] == "Cyberpunk Noir"
+    assert body["story_id"] == "story-generated-1"
+    assert body["theme"] == "genre-noir"
     assert "media_request_id" not in body
-    assert len(body["questions"]) == 4
+    assert len(body["questions"]) == 1
     for q in body["questions"]:
         assert "question" in q
+        assert q["question_id"] == "q_1"
         assert len(q["options"]) == 4
         for opt in q["options"]:
             assert "text" in opt
@@ -368,7 +398,7 @@ def test_generate_questions_route_returns_questions(client: TestClient) -> None:
 def test_generate_questions_route_rejects_empty_theme(client: TestClient) -> None:
     response = client.post(
         "/story/questions",
-        json={"theme": ""},
+        json={"theme_id": ""},
     )
     assert response.status_code == 422
 

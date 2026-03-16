@@ -29,6 +29,7 @@ class _QuestionOptionPayload(BaseModel):
 
 
 class _QuestionPayload(BaseModel):
+    id: str = ""
     question: str
     options: list[_QuestionOptionPayload] = Field(..., min_length=4, max_length=4)
 
@@ -110,6 +111,7 @@ class GeminiStoryGenerator(StoryGeneratorPort):
         return [
             InitialQuestion(
                 question=q.question,
+                question_id=q.id,
                 options=[
                     QuestionOption(text=opt.text, image_prompt=opt.image_prompt)
                     for opt in q.options

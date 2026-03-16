@@ -33,6 +33,7 @@ const StoryCreationPage: React.FC = () => {
     setAnswer,
     setCustomInput,
     setLoading,
+    setStoryId,
     nextQuestion,
     previousQuestion,
     reset,
@@ -43,11 +44,14 @@ const StoryCreationPage: React.FC = () => {
 
   // Fetch questions on mount
   useEffect(() => {
-    const theme = genre?.title ?? selectedGenre?.title ?? '';
+    const themeId = genre?.id ?? selectedGenre?.id ?? '';
     reset();
     setLoading(true);
-    fetchStoryQuestions(theme)
-      .then(({ questions }) => setQuestions(questions))
+    fetchStoryQuestions(themeId)
+      .then(({ questions, storyId }) => {
+        setQuestions(questions);
+        setStoryId(storyId);
+      })
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -94,7 +98,8 @@ const StoryCreationPage: React.FC = () => {
         answer: answers[q.id] ?? '',
       })),
     };
-    navigate('/story/generating', { state: { payload } });
+    const storyId = useStoryCreationStore.getState().storyId;
+    navigate('/story/generating', { state: { payload, storyId } });
   };
 
   const headerBg = isDark ? 'rgba(10,10,15,0.88)' : 'rgba(244,243,250,0.92)';

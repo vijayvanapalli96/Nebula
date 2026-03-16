@@ -9,9 +9,13 @@ from app.infrastructure.firebase.admin import ensure_initialized
 from app.application.ports.image_storage import ImageStoragePort
 from app.application.ports.interleaved_generator import InterleavedGeneratorPort
 from app.application.ports.story_generator import StoryGeneratorPort
+from app.application.ports.themed_question_generator import ThemedQuestionGeneratorPort
 from app.application.ports.video_generator import VideoGeneratorPort
 from app.application.services.media_task_tracker import MediaTaskTracker, get_media_tracker
+from app.application.use_cases.create_story import CreateStoryUseCase
 from app.application.use_cases.creative_storytelling import CreativeStorytellingUseCase
+from app.application.use_cases.generate_story_questions import GenerateStoryQuestionsUseCase
+from app.application.use_cases.get_theme import GetThemeUseCase
 from app.application.use_cases.story_engine import StoryEngineUseCase
 from app.application.use_cases.video_generation import VideoGenerationUseCase
 from app.core.settings import get_settings
@@ -19,14 +23,18 @@ from app.domain.repositories.asset_repository import AssetRepository
 from app.domain.repositories.composition_repository import CompositionRepository
 from app.domain.repositories.project_repository import ProjectRepository
 from app.domain.repositories.story_scene_repository import StorySceneRepository
+from app.domain.repositories.story_document_repository import StoryDocumentRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
+from app.domain.repositories.theme_detail_repository import ThemeDetailRepository
 from app.domain.repositories.user_story_repository import UserStoryRepository
 from app.domain.repositories.usage_repository import UsageRepository
 from app.domain.repositories.video_repository import VideoJobRepository
 from app.infrastructure.repositories.firestore_story_scene_repository import FirestoreStorySceneRepository
 from app.infrastructure.repositories.firestore_story_theme_repository import FirestoreStoryThemeRepository
 from app.infrastructure.repositories.firestore_user_story_repository import FirestoreUserStoryRepository
+from app.infrastructure.repositories.firestore_theme_detail_repository import FirestoreThemeDetailRepository
+from app.infrastructure.repositories.firestore_story_document_repository import FirestoreStoryDocumentRepository
 from app.infrastructure.repositories.in_memory_creative_repository import (
     InMemoryAssetRepository,
     InMemoryCompositionRepository,
@@ -37,12 +45,16 @@ from app.infrastructure.repositories.in_memory_creative_repository import (
 from app.infrastructure.repositories.in_memory_story_scene_repository import InMemoryStorySceneRepository
 from app.infrastructure.repositories.in_memory_story_repository import InMemoryStoryStateRepository
 from app.infrastructure.repositories.in_memory_story_theme_repository import InMemoryStoryThemeRepository
+from app.infrastructure.repositories.in_memory_theme_detail_repository import InMemoryThemeDetailRepository
+from app.infrastructure.repositories.in_memory_story_document_repository import InMemoryStoryDocumentRepository
 from app.infrastructure.repositories.in_memory_video_repository import InMemoryVideoJobRepository
 
 _story_repository = InMemoryStoryStateRepository()
 _video_repository = InMemoryVideoJobRepository()
 _theme_repository = InMemoryStoryThemeRepository()
 _scene_repository = InMemoryStorySceneRepository()
+_theme_detail_repository = InMemoryThemeDetailRepository()
+_story_document_repository = InMemoryStoryDocumentRepository()
 _creative_workspace = InMemoryCreativeWorkspaceRepository()
 _project_repository = InMemoryProjectRepository(_creative_workspace)
 _composition_repository = InMemoryCompositionRepository(_creative_workspace)
@@ -257,6 +269,89 @@ def get_video_use_case(
     generator: VideoGeneratorPort = Depends(get_video_generator),
 ) -> VideoGenerationUseCase:
     return VideoGenerationUseCase(repository=repository, generator=generator)
+
+
+# ── Theme detail repository ───────────────────────────────────────────────────
+
+
+@lru_cache
+def _get_theme_detail_repository_singleton() -> ThemeDetailRepository:
+    settings = get_settings()
+    firestore_client = _get_firestore_client_singleton()
+    collection_name = settings.firebase_themes_collection.strip()
+
+    if firestore_client is not None and collection_name:
+        return FirestoreThemeDetailRepository(
+            firestore_client=firestore_client,
+            collection_name=collection_name,
+        )
+    return _theme_detail_repository
+
+
+def get_theme_detail_repository() -> ThemeDetailRepository:
+    return _get_theme_detail_repository_singleton()
+
+
+# ── Story document repository ─────────────────────────────────────────────────
+
+
+@lru_cache
+def _get_story_document_repository_singleton() -> StoryDocumentRepository:
+    firestore_client = _get_firestore_client_singleton()
+    if firestore_client is not None:
+        return FirestoreStoryDocumentRepository(firestore_client=firestore_client)
+    return _story_document_repository
+
+
+def get_story_document_repository() -> StoryDocumentRepository:
+    return _get_story_document_repository_singleton()
+
+
+# ── Themed question generator ─────────────────────────────────────────────────
+
+
+@lru_cache
+def _get_themed_question_generator_singleton() -> ThemedQuestionGeneratorPort:
+    from app.infrastructure.ai.gemini_themed_question_generator import GeminiThemedQuestionGenerator
+
+    return GeminiThemedQuestionGenerator(settings=get_settings())
+
+
+def get_themed_question_generator() -> ThemedQuestionGeneratorPort:
+    return _get_themed_question_generator_singleton()
+
+
+# ── GetTheme / CreateStory / GenerateStoryQuestions use cases ─────────────────
+
+
+def get_get_theme_use_case(
+    theme_detail_repository: ThemeDetailRepository = Depends(get_theme_detail_repository),
+) -> GetThemeUseCase:
+    return GetThemeUseCase(repository=theme_detail_repository)
+
+
+def get_create_story_use_case(
+    story_doc_repository: StoryDocumentRepository = Depends(get_story_document_repository),
+) -> CreateStoryUseCase:
+    return CreateStoryUseCase(repository=story_doc_repository)
+
+
+def get_generate_story_questions_use_case(
+    get_theme: GetThemeUseCase = Depends(get_get_theme_use_case),
+    create_story: CreateStoryUseCase = Depends(get_create_story_use_case),
+    question_generator: ThemedQuestionGeneratorPort = Depends(get_themed_question_generator),
+    story_generator: StoryGeneratorPort = Depends(get_ai_generator),
+    image_storage: ImageStoragePort | None = Depends(get_image_storage),
+    story_doc_repository: StoryDocumentRepository = Depends(get_story_document_repository),
+) -> GenerateStoryQuestionsUseCase:
+    return GenerateStoryQuestionsUseCase(
+        get_theme_use_case=get_theme,
+        create_story_use_case=create_story,
+        question_generator=question_generator,
+        story_generator=story_generator,
+        image_storage=image_storage,
+        story_doc_repository=story_doc_repository,
+    )
 
 
 # ── Shared Firebase auth guard ────────────────────────────────────────────────

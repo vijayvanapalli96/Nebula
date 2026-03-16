@@ -49,12 +49,14 @@ class QuestionOption:
     text: str
     image_prompt: str
     image_uri: str | None = None
+    gcs_path: str | None = None
 
 
 @dataclass
 class InitialQuestion:
     question: str
     options: list[QuestionOption]
+    question_id: str = ""
 
 
 @dataclass
