@@ -44,3 +44,16 @@ class ApplyActionCommand:
     session_id: str
     choice_id: str
 
+
+@dataclass(frozen=True)
+class GenerateContinuationCommand:
+    """Input for the scene-continuation block.
+
+    Matches the contract agreed with the story-start PR:
+      story_id, previous_scene_id, current_scene_id, choice_id
+    """
+    story_id: str
+    previous_scene_id: str
+    current_scene_id: str
+    choice_id: str
+

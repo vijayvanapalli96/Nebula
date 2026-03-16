@@ -71,6 +71,18 @@ class StoryDocumentRepository(Protocol):
         """Read one scene document from users/{user_id}/stories/{story_id}/scenes/{scene_id}."""
         ...
 
+    def update_scene_forward_link(
+        self,
+        user_id: str,
+        story_id: str,
+        parent_scene_id: str,
+        choice_id: str,
+        next_scene_id: str,
+    ) -> None:
+        """Add next_scene_id to parent's nextSceneIds list and set the matching
+        choice's nextSceneId field."""
+        ...
+
     def get_story_payload(
         self,
         user_id: str,

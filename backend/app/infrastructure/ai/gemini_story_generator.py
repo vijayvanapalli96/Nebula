@@ -13,11 +13,13 @@ from app.core.settings import Settings
 from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryState
 from app.domain.models.theme_detail import ThemeDetail
 from app.infrastructure.ai.prompts import (
+    CONTINUATION_SCENE_SYSTEM_PROMPT,
     INITIAL_QUESTIONS_SYSTEM_PROMPT,
     OPENING_SCENE_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     append_style_seed,
     build_action_prompt,
+    build_continuation_scene_prompt,
     build_opening_prompt,
     build_opening_scene_prompt,
     build_questions_prompt,
@@ -70,6 +72,15 @@ class _OpeningChoicePayload(BaseModel):
 class _OpeningScenePayload(BaseModel):
     scene_title: str
     scene_description: str
+    video_prompt: str = ""
+    choices: list[_OpeningChoicePayload] = Field(..., min_length=2, max_length=4)
+
+
+class _ContinuationScenePayload(BaseModel):
+    """Same as opening but with a required summary for chain-of-summaries."""
+    scene_title: str
+    scene_description: str
+    summary: str = ""
     video_prompt: str = ""
     choices: list[_OpeningChoicePayload] = Field(..., min_length=2, max_length=4)
 
@@ -254,6 +265,68 @@ class GeminiStoryGenerator(StoryGeneratorPort):
     async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> Scene:
         prompt = build_action_prompt(state, chosen=chosen)
         return await self._generate_scene(prompt=prompt, genre=state.genre)
+
+    async def generate_continuation_scene(
+        self,
+        theme: ThemeDetail,
+        character_name: str,
+        scene_summaries: list[str],
+        current_scene_description: str,
+        selected_choice_text: str,
+        selected_direction_hint: str,
+    ) -> OpeningScene:
+        if self._client is None:
+            raise StoryGenerationError("GEMINI_API_KEY is not configured.")
+
+        prompt = build_continuation_scene_prompt(
+            theme=theme,
+            character_name=character_name,
+            scene_summaries=scene_summaries,
+            current_scene_description=current_scene_description,
+            selected_choice_text=selected_choice_text,
+            selected_direction_hint=selected_direction_hint,
+        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=CONTINUATION_SCENE_SYSTEM_PROMPT,
+                    temperature=0.9,
+                    top_p=0.95,
+                    max_output_tokens=1200,
+                    response_mime_type="application/json",
+                ),
+            )
+        except Exception as exc:
+            raise StoryGenerationError(f"Gemini request failed: {exc}") from exc
+
+        raw_text = _extract_response_text(response)
+        payload = _parse_model_json(raw_text)
+
+        try:
+            scene_payload = _ContinuationScenePayload.model_validate(payload)
+        except Exception as exc:
+            raise StoryGenerationError(
+                f"Gemini returned invalid continuation scene schema: {exc}"
+            ) from exc
+
+        return OpeningScene(
+            scene_title=scene_payload.scene_title,
+            scene_description=scene_payload.scene_description,
+            video_prompt=scene_payload.video_prompt,
+            summary=scene_payload.summary,
+            choices=[
+                OpeningChoice(
+                    choice_id=c.choice_id,
+                    choice_text=c.choice_text,
+                    direction_hint=c.direction_hint,
+                    image_prompt=c.image_prompt,
+                    video_prompt=c.video_prompt,
+                )
+                for c in scene_payload.choices
+            ],
+        )
 
     async def _generate_scene(self, prompt: str, genre: str) -> Scene:
         if self._client is None:

@@ -5,8 +5,9 @@ import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
+from app.application.dto.story_commands import ApplyActionCommand, GenerateContinuationCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, StartStoryCommand
 from app.application.dto.story_results import (
+    ContinuationSceneResult,
     OpeningSceneResult,
     QuestionsResult,
     StoryActionResult,
@@ -387,6 +388,186 @@ class StoryEngineUseCase:
 
         if tasks:
             await asyncio.gather(*tasks)
+
+    # ── Continuation scene orchestration ──────────────────────────────────────
+
+    async def generate_continuation_scene(
+        self,
+        command: GenerateContinuationCommand,
+        user_id: str = "",
+    ) -> ContinuationSceneResult:
+        """Orchestrate the 'scene → choice → next scene' loop.
+
+        Steps:
+          1. Load the current scene from Firestore.
+          2. Find the selected choice.
+          3. Walk the parent chain to collect summaries (chain-of-summaries).
+          4. Fetch theme detail for richer LLM context.
+          5. Call the LLM to generate the continuation scene.
+          6. Persist the new scene and update backward/forward links.
+          7. Kick off background media generation.
+          8. Return ``ContinuationSceneResult``.
+        """
+        from app.domain.models.theme_detail import ThemeDetail
+
+        if self._story_doc_repository is None or not user_id:
+            raise ValueError("Story document repository and user_id are required for continuation scenes.")
+
+        # 1. Load the current scene
+        current_scene_data = self._story_doc_repository.get_scene(
+            user_id, command.story_id, command.current_scene_id,
+        )
+        if current_scene_data is None:
+            raise SessionNotFoundError(
+                f"Scene '{command.current_scene_id}' not found in story '{command.story_id}'."
+            )
+
+        # 2. Find the selected choice
+        choices = current_scene_data.get("choices", [])
+        selected_choice = None
+        for ch in choices:
+            if ch.get("choiceId") == command.choice_id:
+                selected_choice = ch
+                break
+        if selected_choice is None:
+            raise InvalidChoiceError(
+                f"Choice '{command.choice_id}' not found in scene '{command.current_scene_id}'."
+            )
+
+        # 3. Walk the parent chain to collect summaries (most recent first → reversed later)
+        scene_summaries: list[str] = []
+        walk_scene = current_scene_data
+        while walk_scene is not None:
+            summary = walk_scene.get("summary", "")
+            if summary:
+                scene_summaries.append(summary)
+            parent_id = walk_scene.get("parentSceneId")
+            if parent_id:
+                walk_scene = self._story_doc_repository.get_scene(
+                    user_id, command.story_id, parent_id,
+                )
+            else:
+                walk_scene = None
+        # Reverse so they are in chronological order (root → current)
+        scene_summaries.reverse()
+
+        # 4. Fetch theme detail
+        theme_detail = ThemeDetail(
+            theme_id="unknown",
+            title="Story",
+            category="",
+            description="",
+        )
+        if self._get_theme_use_case is not None:
+            # Read theme_id from the story doc or current scene metadata
+            story_doc = self._story_doc_repository.get_scene(
+                user_id, command.story_id, command.current_scene_id,
+            )
+            # The story document itself may hold theme_id; fall back gracefully
+            try:
+                # Try reading story-level doc for theme info
+                from google.cloud import firestore as _fs
+                _story_ref = self._story_doc_repository._firestore_client.collection(  # type: ignore[attr-defined]
+                    "users"
+                ).document(user_id).collection("stories").document(command.story_id)
+                _story_snap = _story_ref.get()
+                if _story_snap.exists:
+                    _story_data = _story_snap.to_dict()
+                    _theme_id = (_story_data or {}).get("themeId", "")
+                    if _theme_id:
+                        fetched = self._get_theme_use_case.execute(_theme_id)
+                        theme_detail = fetched
+            except Exception:
+                logger.warning("Could not fetch theme for continuation; using minimal ThemeDetail")
+
+        # 5. Generate continuation scene via LLM
+        scene = await self._generator.generate_continuation_scene(
+            theme=theme_detail,
+            character_name=current_scene_data.get("characterName", "Hero"),
+            scene_summaries=scene_summaries,
+            current_scene_description=current_scene_data.get("description", ""),
+            selected_choice_text=selected_choice.get("choiceText", ""),
+            selected_direction_hint=selected_choice.get("directionHint", ""),
+        )
+
+        # 6. Compute new scene metadata
+        new_scene_id = f"scene_{uuid4().hex[:12]}"
+        parent_depth = current_scene_data.get("depth", 0)
+        new_depth = parent_depth + 1
+
+        # 7. Persist the new scene
+        try:
+            self._story_doc_repository.store_scene(
+                user_id,
+                command.story_id,
+                new_scene_id,
+                {
+                    "sceneId": new_scene_id,
+                    "title": scene.scene_title,
+                    "description": scene.scene_description,
+                    "summary": scene.summary,
+                    "isRoot": False,
+                    "depth": new_depth,
+                    "parentSceneId": command.current_scene_id,
+                    "nextSceneIds": [],
+                    "videoPrompt": scene.video_prompt,
+                    "choices": [
+                        {
+                            "choiceId": c.choice_id,
+                            "choiceText": c.choice_text,
+                            "directionHint": c.direction_hint,
+                            "imagePrompt": c.image_prompt,
+                            "videoPrompt": c.video_prompt,
+                            "nextSceneId": None,
+                            "imageUrl": None,
+                            "videoUrl": None,
+                        }
+                        for c in scene.choices
+                    ],
+                },
+            )
+        except Exception:
+            logger.exception("Failed to store continuation scene %s", new_scene_id)
+
+        # 8. Update the parent scene's forward link + choice pointer
+        try:
+            self._story_doc_repository.update_scene_forward_link(
+                user_id,
+                command.story_id,
+                command.current_scene_id,
+                command.choice_id,
+                new_scene_id,
+            )
+        except Exception:
+            logger.exception("Failed to update forward link on scene %s", command.current_scene_id)
+
+        # 9. Update story-level branchDepth if this is the deepest we've gone
+        try:
+            self._story_doc_repository.update_status(
+                user_id,
+                command.story_id,
+                "playing",
+                {"branchDepth": new_depth},
+            )
+        except Exception:
+            logger.exception("Failed to update branchDepth for story %s", command.story_id)
+
+        # 10. Fire background media generation (re-uses opening scene media pipeline)
+        media_request_id = self.fire_opening_scene_media(
+            scene,
+            story_id=command.story_id,
+            user_id=user_id,
+            scene_id=new_scene_id,
+        )
+
+        return ContinuationSceneResult(
+            story_id=command.story_id,
+            scene_id=new_scene_id,
+            parent_scene_id=command.current_scene_id,
+            depth=new_depth,
+            scene=scene,
+            media_request_id=media_request_id,
+        )
 
     async def start_story(self, command: StartStoryCommand) -> StoryStartResult:
         state = StoryState(

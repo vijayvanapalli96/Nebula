@@ -19,6 +19,8 @@ from app.presentation.api.dependencies import (
 )
 from app.presentation.api.schemas import (
     ChoiceMediaItem,
+    ContinuationSceneRequest,
+    ContinuationSceneResponse,
     GenerateQuestionsResponse,
     GenerateStoryQuestionsRequest,
     OpeningSceneRequest,
@@ -34,6 +36,8 @@ from app.presentation.api.schemas import (
     StoryThemeResponse,
     to_action_command,
     to_action_response,
+    to_continuation_command,
+    to_continuation_scene_response,
     to_opening_scene_command,
     to_opening_scene_response,
     to_start_command,
@@ -120,6 +124,40 @@ async def generate_opening_scene(
             user_id=user_id,
         )
         return to_opening_scene_response(result)
+    except StoryGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/story/scene/next",
+    response_model=ContinuationSceneResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def generate_continuation_scene(
+    request: ContinuationSceneRequest,
+    user_id: str = Depends(require_auth),
+    use_case: StoryEngineUseCase = Depends(get_use_case),
+) -> ContinuationSceneResponse:
+    """Generate a continuation scene from the player's choice."""
+    try:
+        result = await use_case.generate_continuation_scene(
+            command=to_continuation_command(request),
+            user_id=user_id,
+        )
+        return to_continuation_scene_response(result)
+    except SessionNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except InvalidChoiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except StoryGenerationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

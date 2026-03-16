@@ -56,12 +56,13 @@ class FirestoreStoryDocumentRepository:
             .collection("stories")
             .document(story_id)
         )
-        ref.update(
+        ref.set(
             {
                 "status": status,
                 "updatedAt": datetime.now(UTC),
                 **summary,
-            }
+            },
+            merge=True,
         )
 
     def store_question(
@@ -224,3 +225,63 @@ class FirestoreStoryDocumentRepository:
                     choice["videoUrl"] = video_url
                 break
         ref.update({"choices": choices, "updatedAt": datetime.now(UTC)})
+
+    def get_scene(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+    ) -> dict | None:
+        """Read a scene document from users/{uid}/stories/{storyId}/scenes/{sceneId}."""
+        snap = (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+            .collection("scenes")
+            .document(scene_id)
+            .get()
+        )
+        if not snap.exists:
+            return None
+        return snap.to_dict()
+
+    def update_scene_forward_link(
+        self,
+        user_id: str,
+        story_id: str,
+        parent_scene_id: str,
+        choice_id: str,
+        next_scene_id: str,
+    ) -> None:
+        """Add next_scene_id to parent's nextSceneIds and set on the matching choice."""
+        ref = (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+            .collection("scenes")
+            .document(parent_scene_id)
+        )
+        snap = ref.get()
+        if not snap.exists:
+            return
+        data = snap.to_dict() or {}
+
+        # Update nextSceneIds list
+        next_ids = list(data.get("nextSceneIds", []))
+        if next_scene_id not in next_ids:
+            next_ids.append(next_scene_id)
+
+        # Update the matching choice's nextSceneId
+        choices = list(data.get("choices", []))
+        for choice in choices:
+            if choice.get("choiceId") == choice_id:
+                choice["nextSceneId"] = next_scene_id
+                break
+
+        ref.update({
+            "nextSceneIds": next_ids,
+            "choices": choices,
+            "updatedAt": datetime.now(UTC),
+        })
