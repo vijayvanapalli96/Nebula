@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
 import os
 from functools import partial
 from pathlib import Path
@@ -11,6 +12,8 @@ from google.oauth2 import service_account
 
 from app.application.ports.image_storage import ImageStoragePort
 from app.core.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 _SIGNED_URL_EXPIRY = datetime.timedelta(days=7)
 
@@ -30,7 +33,7 @@ class GcsImageStorage(ImageStoragePort):
                 self._client = storage.Client(credentials=creds, project=creds.project_id)
                 self._signing_credentials = creds
             else:
-                # Fall back to Application Default Credentials (no signed URLs)
+                # Fall back to Application Default Credentials (Cloud Run / GCE)
                 self._client = storage.Client()
 
     async def upload_image(self, image_bytes: bytes, destination_path: str) -> str:
@@ -60,13 +63,47 @@ class GcsImageStorage(ImageStoragePort):
         blob = bucket.blob(destination_path)
         blob.upload_from_string(data, content_type=content_type)
 
+        # 1️⃣ Explicit SA key — best option, always works
         if self._signing_credentials:
-            url: str = blob.generate_signed_url(
+            return blob.generate_signed_url(
                 expiration=_SIGNED_URL_EXPIRY,
                 method="GET",
                 credentials=self._signing_credentials,
             )
-            return url
 
-        # Fallback: unauthenticated public URL (only works if bucket is public)
+        # 2️⃣ ADC-based signing — works on Cloud Run when the service account
+        #   has roles/iam.serviceAccountTokenCreator on itself
+        try:
+            import google.auth
+            import google.auth.transport.requests as google_requests
+
+            adc_creds, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+            adc_creds.refresh(google_requests.Request())
+            service_account_email: str = getattr(adc_creds, "service_account_email", "")
+            access_token: str = getattr(adc_creds, "token", "")
+
+            if service_account_email and access_token:
+                return blob.generate_signed_url(
+                    expiration=_SIGNED_URL_EXPIRY,
+                    method="GET",
+                    service_account_email=service_account_email,
+                    access_token=access_token,
+                    version="v4",
+                )
+        except Exception:
+            logger.warning(
+                "ADC-based signed URL generation failed for '%s', falling back to public URL.",
+                destination_path,
+                exc_info=True,
+            )
+
+        # 3️⃣ Last resort: unauthenticated public URL (only works if bucket is public)
+        logger.warning(
+            "Returning public_url for '%s'. Ensure bucket '%s' has allUsers Storage Object Viewer "
+            "or set GCS_SA_KEY_PATH / grant roles/iam.serviceAccountTokenCreator.",
+            destination_path,
+            self._bucket_name,
+        )
         return blob.public_url

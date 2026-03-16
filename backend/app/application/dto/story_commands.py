@@ -17,6 +17,12 @@ class GenerateQuestionsCommand:
 
 
 @dataclass(frozen=True)
+class GenerateStoryQuestionsCommand:
+    user_id: str
+    theme_id: str
+
+
+@dataclass(frozen=True)
 class QuestionAnswer:
     question: str
     answer: str

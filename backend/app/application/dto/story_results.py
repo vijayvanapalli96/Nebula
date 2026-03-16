@@ -13,6 +13,13 @@ class QuestionsResult:
 
 
 @dataclass(frozen=True)
+class GenerateStoryQuestionsResult:
+    story_id: str
+    theme: str
+    questions: list[InitialQuestion]
+
+
+@dataclass(frozen=True)
 class OpeningSceneResult:
     theme: str
     character_name: str

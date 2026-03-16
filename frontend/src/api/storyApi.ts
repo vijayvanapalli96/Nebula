@@ -5,13 +5,21 @@ import type { Scene } from '../store/storySessionStore';
 
 export interface StoryQuestionsResponse {
   questions: Question[];
+  storyId: string | null;
 }
 
-type QuestionOptionPayload = string | { text: string; image_uri?: string | null };
+type QuestionOptionPayload = string | { text: string; image_prompt?: string; image_uri?: string | null };
+
+interface QuestionPayload {
+  question_id?: string;
+  question: string;
+  options: QuestionOptionPayload[];
+}
 
 interface StoryQuestionsPayload {
+  story_id?: string | null;
   theme: string;
-  questions: Array<{ question: string; options: QuestionOptionPayload[] }>;
+  questions: QuestionPayload[];
 }
 
 interface StoryThemePayload {
@@ -78,11 +86,11 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 /** POST /story/questions — fetches AI-generated questions for the given theme/genre. */
-export async function fetchStoryQuestions(theme: string): Promise<StoryQuestionsResponse> {
+export async function fetchStoryQuestions(themeId: string): Promise<StoryQuestionsResponse> {
   const res = await fetch(`${BASE_URL}/story/questions`, {
     method: 'POST',
     headers: await getAuthHeaders(),
-    body: JSON.stringify({ theme }),
+    body: JSON.stringify({ theme_id: themeId }),
   });
 
   if (!res.ok) {
@@ -90,9 +98,21 @@ export async function fetchStoryQuestions(theme: string): Promise<StoryQuestions
   }
 
   const data = (await res.json()) as StoryQuestionsPayload;
+
+  // Diagnostic: log raw image_uri values so you can verify URLs in DevTools
+  if (import.meta.env.DEV) {
+    data.questions.forEach((q, qi) => {
+      q.options.forEach((opt, oi) => {
+        const raw = typeof opt === 'string' ? null : opt.image_uri;
+        console.debug(`[storyApi] q${qi} opt${oi} image_uri =`, raw);
+      });
+    });
+  }
+
   return {
+    storyId: data.story_id ?? null,
     questions: data.questions.map((question, index) => ({
-      id: `q_${index}`,
+      id: question.question_id?.trim() ? question.question_id : `q_${index}`,
       question: question.question,
       options: question.options.map((option, optionIndex) => (
         mapQuestionOption(option, optionIndex)

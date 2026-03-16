@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.domain.models.story import HistoryEntry, SceneChoice, StoryState
+from app.domain.models.theme_detail import ThemeDetail
 
 INITIAL_QUESTIONS_SYSTEM_PROMPT = """
 You are an AI narrative designer creating the setup for an interactive story.
@@ -192,3 +193,58 @@ def build_opening_scene_prompt(
         "drops the character into the world with immediate tension and a clear hook."
     )
 
+
+# ── Themed questions (richer theme context) ───────────────────────────────────
+
+THEMED_QUESTIONS_SYSTEM_PROMPT = """
+You are an expert narrative designer crafting personalised story-setup questions.
+
+Task: generate EXACTLY 4 multiple-choice questions tailored to the provided theme.
+These questions will shape the protagonist, central conflict, tone, and key story element.
+
+Rules:
+- Every question and option must feel native to the theme — title, category, tone, and style.
+- Each question must have EXACTLY 4 options.
+- Each option must include:
+    text        : the choice shown to the player
+    image_prompt: a vivid, single-sentence cinematic still-frame description for an
+                  image generation model. Match the theme's visual style.
+                  No text overlays, no UI elements, no titles.
+- Question ids must be short snake_case strings (e.g. hero_role, central_conflict).
+- story_influence: one sentence explaining how the answer shapes future scenes.
+- Avoid vague philosophical questions; keep them concrete and narratively interesting.
+
+Return ONLY valid JSON — no markdown fences, no extra text:
+
+{
+  "questions": [
+    {
+      "id": "snake_case_id",
+      "question": "Question text shown to the player",
+      "story_influence": "One-sentence note on narrative impact",
+      "options": [
+        {"text": "Option A text", "image_prompt": "Vivid cinematic description A"},
+        {"text": "Option B text", "image_prompt": "Vivid cinematic description B"},
+        {"text": "Option C text", "image_prompt": "Vivid cinematic description C"},
+        {"text": "Option D text", "image_prompt": "Vivid cinematic description D"}
+      ]
+    }
+  ]
+}
+"""
+
+
+def build_themed_questions_prompt(theme: ThemeDetail) -> str:
+    """Build the user-turn prompt that gives the LLM the full theme context."""
+    tone_tags = ", ".join(theme.default_tone_tags) if theme.default_tone_tags else "none specified"
+    return (
+        f"Theme Title     : {theme.title}\n"
+        f"Category        : {theme.category}\n"
+        f"Description     : {theme.description}\n"
+        f"Tone Tags       : {tone_tags}\n"
+        f"Narrative Style : {theme.prompt_hints.narrative_style}\n"
+        f"Visual Style    : {theme.prompt_hints.visual_style}\n\n"
+        "Generate exactly 4 story-setup questions deeply rooted in this theme.\n"
+        "Each question must have exactly 4 options with matching image_prompts.\n"
+        "Return strictly valid JSON as specified."
+    )

@@ -5,8 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, QuestionAnswer, StartStoryCommand
-from app.application.dto.story_results import OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
+from app.application.dto.story_commands import ApplyActionCommand, GenerateOpeningSceneCommand, GenerateQuestionsCommand, GenerateStoryQuestionsCommand, QuestionAnswer, StartStoryCommand
+from app.application.dto.story_results import GenerateStoryQuestionsResult, OpeningSceneResult, QuestionsResult, StoryActionResult, StoryCardView, StoryStartResult, StoryThemeView
 from app.domain.models.story import HistoryEntry, Scene, StoryState
 
 
@@ -107,11 +107,13 @@ class QuestionOptionResponse(BaseModel):
 
 
 class QuestionResponse(BaseModel):
+    question_id: str = Field(default="", description="Unique identifier for the question.")
     question: str = Field(..., min_length=1, description="The question text.")
     options: list[QuestionOptionResponse] = Field(..., min_length=4, max_length=4, description="Answer options.")
 
 
 class GenerateQuestionsResponse(BaseModel):
+    story_id: str | None = Field(default=None, description="Story id created for this session (only present for theme-id flow).")
     theme: str
     questions: list[QuestionResponse] = Field(..., min_length=1)
 
@@ -248,6 +250,38 @@ def to_questions_command(request: GenerateQuestionsRequest) -> GenerateQuestions
     return GenerateQuestionsCommand(theme=request.theme)
 
 
+class GenerateStoryQuestionsRequest(BaseModel):
+    theme_id: str = Field(..., min_length=1, description="Firestore theme document id.")
+
+
+def to_story_questions_command(
+    request: GenerateStoryQuestionsRequest, user_id: str
+) -> GenerateStoryQuestionsCommand:
+    return GenerateStoryQuestionsCommand(user_id=user_id, theme_id=request.theme_id)
+
+
+def to_story_questions_response(result: GenerateStoryQuestionsResult) -> GenerateQuestionsResponse:
+    return GenerateQuestionsResponse(
+        story_id=result.story_id,
+        theme=result.theme,
+        questions=[
+            QuestionResponse(
+                question_id=q.question_id,
+                question=q.question,
+                options=[
+                    QuestionOptionResponse(
+                        text=opt.text,
+                        image_prompt=opt.image_prompt,
+                        image_uri=opt.image_uri,
+                    )
+                    for opt in q.options
+                ],
+            )
+            for q in result.questions
+        ],
+    )
+
+
 def to_opening_scene_command(request: OpeningSceneRequest) -> GenerateOpeningSceneCommand:
     return GenerateOpeningSceneCommand(
         theme=request.theme,
@@ -282,9 +316,11 @@ def to_opening_scene_response(
 
 def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
     return GenerateQuestionsResponse(
+        story_id=None,
         theme=result.theme,
         questions=[
             QuestionResponse(
+                question_id=q.question_id,
                 question=q.question,
                 options=[
                     QuestionOptionResponse(
