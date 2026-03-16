@@ -1,158 +1,275 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { fetchStoryDetail } from '../api/storyApi';
+import { useStoryViewerStore } from '../store/storyViewerStore';
+import StoryLoadingPage from './StoryLoadingPage';
+import SceneTimeline from '../features/story/SceneTimeline';
 import type { StoryDetail } from '../types/story';
 
 interface StoryPageLocationState {
   storyDetail?: StoryDetail;
 }
 
-function formatRelativeTime(isoDate: string | null): string {
-  if (!isoDate) return 'Not played yet';
+// ── helpers ────────────────────────────────────────────────────────────────
+const COVER_GRADIENT = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)';
+
+function formatRelativeTime(isoDate: string | null | undefined): string {
+  if (!isoDate) return '';
   const diff = Date.now() - new Date(isoDate).getTime();
   const minutes = Math.floor(diff / 60_000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
-const HERO_GRADIENT = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)';
-
+// ── component ───────────────────────────────────────────────────────────────
 const StoryPage: React.FC = () => {
   const { storyId } = useParams<{ storyId: string }>();
+  const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as StoryPageLocationState | null;
-  const initialStory =
-    locationState?.storyDetail && locationState.storyDetail.story_id === storyId
-      ? locationState.storyDetail
-      : null;
 
-  const [story, setStory] = useState<StoryDetail | null>(initialStory);
-  const [loading, setLoading] = useState<boolean>(Boolean(storyId) && !initialStory);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    story,
+    timeline,
+    selectedChoices,
+    choicesRevealedForScene,
+    localSelectedChoice,
+    generatingNextScene,
+    loading,
+    error,
+    loadStory,
+    revealChoices,
+    selectLocalChoice,
+    reset,
+  } = useStoryViewerStore();
 
   useEffect(() => {
-    if (!storyId) {
-      setError('Story ID is missing.');
-      setLoading(false);
-      return;
-    }
+    if (!storyId) return;
+    const prefetched =
+      locationState?.storyDetail?.story_id === storyId ? locationState.storyDetail : null;
+    void loadStory(storyId, prefetched);
+    return () => reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyId]);
 
-    if (initialStory && initialStory.story_id === storyId) {
-      setStory(initialStory);
-      setError(null);
-      setLoading(false);
-      return;
-    }
+  const handleChoiceSelect = useCallback(
+    (sceneId: string, choiceId: string) => selectLocalChoice(sceneId, choiceId),
+    [selectLocalChoice],
+  );
 
-    let isMounted = true;
-    setLoading(true);
-    setError(null);
+  const handleRevealChoices = useCallback(
+    (sceneId: string) => revealChoices(sceneId),
+    [revealChoices],
+  );
 
-    void fetchStoryDetail(storyId)
-      .then((payload) => {
-        if (!isMounted) return;
-        setStory(payload);
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        setError(err instanceof Error ? err.message : 'Failed to load story.');
-      })
-      .finally(() => {
-        if (!isMounted) return;
-        setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [storyId, initialStory]);
-
+  // ── loading state ─────────────────────────────────────────────────────────
   if (loading) {
+    const hint = story ?? locationState?.storyDetail;
     return (
-      <main className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center text-white gap-4">
-        <div className="w-8 h-8 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
-        <p className="text-gray-400 text-sm">Loading story…</p>
-      </main>
+      <StoryLoadingPage
+        title={hint?.title}
+        genre={hint?.genre}
+        characterName={hint?.character_name}
+      />
     );
   }
 
-  if (!story || error) {
+  // ── error / not-found state ───────────────────────────────────────────────
+  if (error || !story) {
     return (
-      <main className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center text-white gap-4">
-        <p className="text-gray-300">Story not found.</p>
-        {error ? <p className="text-gray-500 text-sm">{error}</p> : null}
-        <Link to="/dashboard" className="text-violet-400 hover:underline text-sm">
+      <main
+        className="min-h-screen flex flex-col items-center justify-center gap-5 px-6"
+        style={{ backgroundColor: 'var(--bg-base)' }}
+      >
+        <div className="text-center space-y-2">
+          <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>
+            Story not found
+          </p>
+          {error && (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              {error}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="text-sm font-semibold transition hover:opacity-80"
+          style={{ color: '#a78bfa' }}
+        >
           ← Back to Dashboard
-        </Link>
+        </button>
       </main>
     );
   }
 
+  // ── derived values ────────────────────────────────────────────────────────
   const progress = story.progress ?? 0;
   const lastPlayedLabel = formatRelativeTime(story.last_played_at ?? story.updated_at);
+  const hasScenes = timeline.length > 0;
+  const coverImage = story.cover_image ?? story.theme_image_url ?? null;
 
+  // ── main render ───────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Hero banner */}
-      <div className="relative h-72 sm:h-96 overflow-hidden">
-        {story.cover_image ? (
-          <img
-            src={story.cover_image}
-            alt={story.title}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full" style={{ background: HERO_GRADIENT }} />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-black/50 to-transparent" />
-        <Link
-          to="/dashboard"
-          className="absolute top-6 left-6 text-xs font-semibold text-white/70 hover:text-white transition"
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)' }}>
+      {/* ── ambient background glow ── */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139,92,246,0.12) 0%, transparent 70%)',
+          zIndex: 0,
+        }}
+      />
+
+      {/* ── sticky header + progress bar ── */}
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-5 py-3 backdrop-blur-md border-b"
+        style={{
+          backgroundColor: 'rgba(10,10,15,0.85)',
+          borderColor: 'rgba(255,255,255,0.06)',
+        }}
+      >
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-2 text-sm font-semibold transition hover:opacity-80"
+          style={{ color: '#a78bfa' }}
         >
           ← Back
-        </Link>
-      </div>
+        </button>
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="max-w-2xl mx-auto px-6 -mt-16 relative z-10 pb-16 space-y-6"
-      >
-        <span className="inline-block text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300">
-          {story.genre}
-        </span>
-        <h1 className="text-3xl sm:text-4xl font-black">{story.title}</h1>
-        <p className="text-sm text-violet-200/80">
-          {story.character_name} · {story.archetype}
-        </p>
-        <p className="text-xs text-gray-400">Last played {lastPlayedLabel}</p>
-
-        <div>
-          <div className="flex justify-between text-xs text-gray-400 mb-2">
-            <span>Progress</span>
-            <span className="text-violet-400">{progress}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+        <div className="flex items-center gap-3">
+          {lastPlayedLabel && (
+            <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>
+              {lastPlayedLabel}
+            </span>
+          )}
+          <div className="w-28 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
             <motion.div
-              className="h-full rounded-full bg-violet-500"
+              className="h-full rounded-full"
+              style={{ background: 'linear-gradient(90deg, #7c3aed, #a855f7)' }}
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 1.2, ease: 'easeOut' }}
             />
           </div>
+          <span className="text-xs font-bold tabular-nums" style={{ color: '#a78bfa' }}>
+            {progress}%
+          </span>
         </div>
+      </header>
 
-        <button className="px-8 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 font-bold text-sm transition glow-purple">
-          ▶ Resume Story
-        </button>
-      </motion.div>
-    </main>
+      {/* ── hero banner ── */}
+      <div className="relative h-56 sm:h-72 overflow-hidden" style={{ zIndex: 1 }}>
+        {coverImage ? (
+          <img src={coverImage} alt={story.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full" style={{ background: COVER_GRADIENT }} />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-base)] via-black/40 to-transparent" />
+
+        {/* Story meta overlay */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="absolute bottom-6 left-6 right-6"
+        >
+          {story.genre && (
+            <span
+              className="inline-block text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full mb-2"
+              style={{
+                backgroundColor: 'rgba(124,58,237,0.25)',
+                border: '1px solid rgba(167,139,250,0.3)',
+                color: '#c4b5fd',
+              }}
+            >
+              {story.genre}
+            </span>
+          )}
+          <h1 className="text-2xl sm:text-3xl font-black text-white drop-shadow-lg">
+            {story.title}
+          </h1>
+          {(story.character_name || story.archetype) && (
+            <p className="text-sm mt-1" style={{ color: 'rgba(196,181,253,0.8)' }}>
+              {[story.character_name, story.archetype].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </motion.div>
+      </div>
+
+      {/* ── page body ── */}
+      <div className="relative z-10 w-full px-2 sm:px-4 pb-24 pt-8">
+        {hasScenes ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            {/* Section label */}
+            <div className="flex items-center gap-3 mb-8 max-w-7xl mx-auto px-2 sm:px-4">
+              <div className="h-px flex-1" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+              <span
+                className="text-[11px] font-bold tracking-widest uppercase"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Your Journey
+              </span>
+              <div className="h-px flex-1" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            </div>
+
+            <SceneTimeline
+              timeline={timeline}
+              selectedChoices={selectedChoices}
+              localSelectedChoices={localSelectedChoice}
+              choicesRevealedForScene={choicesRevealedForScene}
+              generatingNextScene={generatingNextScene}
+              onChoiceSelect={handleChoiceSelect}
+              onRevealChoices={handleRevealChoices}
+            />
+          </motion.div>
+        ) : (
+          /* ── empty state ── */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col items-center justify-center py-24 gap-6 text-center"
+          >
+            <div
+              className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl"
+              style={{
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(168,85,247,0.15))',
+                border: '1px solid rgba(167,139,250,0.2)',
+              }}
+            >
+              📖
+            </div>
+            <div className="space-y-2">
+              <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                No scenes yet
+              </p>
+              <p className="text-sm max-w-xs" style={{ color: 'var(--text-muted)' }}>
+                This story hasn't started generating scenes. Come back shortly or continue the
+                adventure from the beginning.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold transition hover:opacity-90"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                color: '#fff',
+              }}
+            >
+              Back to Dashboard
+            </button>
+          </motion.div>
+        )}
+      </div>
+    </div>
   );
 };
 

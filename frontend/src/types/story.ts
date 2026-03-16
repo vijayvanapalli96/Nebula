@@ -27,6 +27,34 @@ export interface UserStory {
   theme_description: string | null;
 }
 
+/** A single choice inside a Firestore scene document (camelCase from Firestore). */
+export interface SceneDocChoice {
+  choiceId: string;
+  choiceText: string;
+  directionHint: string;
+  imagePrompt?: string;
+  videoPrompt?: string;
+  /** Scene ID this choice leads to — null means user hasn't selected/generated the next scene yet. */
+  nextSceneId: string | null;
+  /** GCS object path — convert to URL with gcsPathToUrl(). */
+  imageUrl: string | null;
+  /** GCS object path — convert to URL with gcsPathToUrl(). */
+  videoUrl: string | null;
+}
+
+/** A scene document as stored in Firestore (camelCase keys). */
+export interface SceneDoc {
+  sceneId: string;
+  title: string;
+  description: string;
+  isRoot?: boolean;
+  depth?: number;
+  parentSceneId?: string | null;
+  nextSceneIds?: string[];
+  choices: SceneDocChoice[];
+  createdAt?: string;
+}
+
 /** Shape returned by GET /story/{user_id}/{story_id} */
 export interface StoryDetail {
   story_id: string;
@@ -50,6 +78,16 @@ export interface StoryDetail {
   question_count: number | null;
   questions_generated: string[];
   created_at: string | null;
+  // Extended fields populated from Firestore subcollections
+  root_scene_id: string | null;
+  branch_depth: number | null;
+  questionnaire_completed: boolean | null;
+  custom_input: string | null;
+  theme_image_url: string | null;
+  questions: Record<string, unknown>[];
+  answers: Record<string, unknown>[];
+  /** Raw Firestore scene documents. Use buildSceneTimeline() to get the ordered path. */
+  scenes: SceneDoc[];
 }
 
 export interface Genre {
