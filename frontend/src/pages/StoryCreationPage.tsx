@@ -6,7 +6,6 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 import { useStoryCreationStore } from '../store/storyCreationStore';
 import { useThemeStore } from '../store/themeStore';
 import { fetchStoryQuestions } from '../api/storyApi';
-import type { StoryOpeningRequest } from '../api/storyApi';
 import StoryLoadingScreen from '../features/storyCreation/StoryLoadingScreen';
 import QuestionStep from '../features/storyCreation/QuestionStep';
 import ProgressBar from '../features/storyCreation/ProgressBar';
@@ -42,17 +41,27 @@ const StoryCreationPage: React.FC = () => {
   // Track slide direction for AnimatePresence
   const directionRef = useRef<Direction>(1);
 
-  // Fetch questions on mount
+  // Fetch questions on mount.
+  // AbortController ensures the Strict Mode double-invocation (dev-only) doesn't
+  // fire two real network requests — the first is cancelled on cleanup.
   useEffect(() => {
+    const controller = new AbortController();
     const themeId = genre?.id ?? selectedGenre?.id ?? '';
     reset();
     setLoading(true);
-    fetchStoryQuestions(themeId)
+    fetchStoryQuestions(themeId, controller.signal)
       .then(({ questions, storyId }) => {
         setQuestions(questions);
         setStoryId(storyId);
       })
-      .finally(() => setLoading(false));
+      .catch((err: unknown) => {
+        // Ignore intentional abort (Strict Mode cleanup or navigation away)
+        if (err instanceof Error && err.name === 'AbortError') return;
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -88,18 +97,9 @@ const StoryCreationPage: React.FC = () => {
   }, [currentQuestionIndex, navigate, previousQuestion]);
 
   const handleBegin = () => {
-    const theme = selectedGenre?.title ?? genre?.title ?? 'Adventure';
-    const character_name = customInput.trim() || 'The Protagonist';
-    const payload: StoryOpeningRequest = {
-      theme,
-      character_name,
-      answers: questions.map((q) => ({
-        question: q.question,
-        answer: answers[q.id] ?? '',
-      })),
-    };
-    const storyId = useStoryCreationStore.getState().storyId;
-    navigate('/story/generating', { state: { payload, storyId } });
+    // StoryGeneratingPage reads directly from the store, so just navigate.
+    // The storyId and selectedGenre are already in storyCreationStore.
+    navigate('/story/generating');
   };
 
   const headerBg = isDark ? 'rgba(10,10,15,0.88)' : 'rgba(244,243,250,0.92)';

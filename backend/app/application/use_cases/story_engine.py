@@ -13,6 +13,7 @@ from app.application.ports.story_generator import StoryGeneratorPort
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
 from app.application.services.media_task_tracker import AssetState, MediaTaskTracker
 from app.domain.models.story import HistoryEntry, Scene, SceneChoice, StoryState
+from app.domain.repositories.story_document_repository import StoryDocumentRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
 
@@ -28,6 +29,8 @@ class StoryEngineUseCase:
         video_generator: VideoGeneratorPort | None = None,
         theme_repository: StoryThemeRepository | None = None,
         media_tracker: MediaTaskTracker | None = None,
+        story_doc_repository: StoryDocumentRepository | None = None,
+        get_theme_use_case=None,  # GetThemeUseCase — avoid circular import
     ) -> None:
         self._repository = repository
         self._generator = generator
@@ -35,6 +38,8 @@ class StoryEngineUseCase:
         self._video_generator = video_generator
         self._theme_repository = theme_repository
         self._media_tracker = media_tracker
+        self._story_doc_repository = story_doc_repository
+        self._get_theme_use_case = get_theme_use_case
 
     async def generate_questions(self, command: GenerateQuestionsCommand) -> QuestionsResult:
         """Generate questions then generate all option images inline (awaited)."""
@@ -98,16 +103,108 @@ class StoryEngineUseCase:
 
         await asyncio.gather(*[_process_question(q) for q in questions])
 
-    async def generate_opening_scene(self, command: GenerateOpeningSceneCommand) -> OpeningSceneResult:
-        answers_tuples = [(a.question, a.answer) for a in command.answers]
+    async def generate_opening_scene(
+        self,
+        command: GenerateOpeningSceneCommand,
+        user_id: str = "",
+    ) -> OpeningSceneResult:
+        """Full orchestration: save answers → generate scene → persist to Firestore."""
+
+        # 1. Mark story as generating
+        if self._story_doc_repository is not None and user_id:
+            self._story_doc_repository.update_status(
+                user_id, command.story_id,
+                "generating_opening_scene",
+                {"questionnaireCompleted": True, "currentSceneNumber": 1},
+            )
+
+        # 2. Fetch full theme detail for a richer LLM prompt
+        from app.domain.models.theme_detail import PromptHints, ThemeDetail
+
+        theme_detail: ThemeDetail = ThemeDetail(
+            theme_id=command.theme_id,
+            title=command.theme_id,  # bare fallback; overwritten below if lookup succeeds
+            category="",
+            description="",
+        )
+        if self._get_theme_use_case is not None:
+            try:
+                fetched = self._get_theme_use_case.execute(command.theme_id)
+                theme_detail = fetched
+            except Exception:
+                logger.warning("Could not fetch theme %s; using minimal ThemeDetail", command.theme_id)
+
+        # 3. Generate scene via LLM — pass the full ThemeDetail for richer context
+        answers_tuples = [(a.question, a.selected_option) for a in command.answers]
         scene = await self._generator.generate_opening_scene_from_answers(
-            theme=command.theme.strip(),
+            theme=theme_detail,
             character_name=command.character_name.strip(),
             answers=answers_tuples,
         )
 
+        # 4. Persist answers subcollection + custom input
+        if self._story_doc_repository is not None and user_id:
+            try:
+                self._story_doc_repository.save_answers(
+                    user_id,
+                    command.story_id,
+                    [
+                        {
+                            "questionId": a.question_id,
+                            "question": a.question,
+                            "selectedOption": a.selected_option,
+                            "imageUrl": a.image_url,
+                        }
+                        for a in command.answers
+                    ],
+                    command.custom_input,
+                )
+            except Exception:
+                logger.exception("Failed to save answers for story %s", command.story_id)
+
+            # 5. Store scene_001
+            try:
+                self._story_doc_repository.store_scene(
+                    user_id,
+                    command.story_id,
+                    "scene_001",
+                    {
+                        "sceneId": "scene_001",
+                        "sceneTitle": scene.scene_title,
+                        "sceneDescription": scene.scene_description,
+                        "videoPrompt": scene.video_prompt,
+                        "choices": [
+                            {
+                                "choiceId": c.choice_id,
+                                "choiceText": c.choice_text,
+                                "directionHint": c.direction_hint,
+                                "imagePrompt": c.image_prompt,
+                                "videoPrompt": c.video_prompt,
+                            }
+                            for c in scene.choices
+                        ],
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to store scene_001 for story %s", command.story_id)
+
+            # 6. Update story graph data
+            try:
+                self._story_doc_repository.update_status(
+                    user_id, command.story_id,
+                    "opening_scene_ready",
+                    {
+                        "rootSceneId": "scene_001",
+                        "currentSceneId": "scene_001",
+                        "branchDepth": 0,
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to update story graph for story %s", command.story_id)
+
         return OpeningSceneResult(
-            theme=command.theme.strip(),
+            story_id=command.story_id,
+            theme=theme_detail.title,
             character_name=command.character_name.strip(),
             scene=scene,
         )

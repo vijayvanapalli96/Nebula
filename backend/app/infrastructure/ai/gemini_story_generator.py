@@ -11,6 +11,7 @@ from app.application.errors import StoryGenerationError
 from app.application.ports.story_generator import StoryGeneratorPort
 from app.core.settings import Settings
 from app.domain.models.story import InitialQuestion, OpeningChoice, OpeningScene, QuestionOption, Scene, SceneChoice, SceneMetadata, StoryState
+from app.domain.models.theme_detail import ThemeDetail
 from app.infrastructure.ai.prompts import (
     INITIAL_QUESTIONS_SYSTEM_PROMPT,
     OPENING_SCENE_SYSTEM_PROMPT,
@@ -205,7 +206,7 @@ class GeminiStoryGenerator(StoryGeneratorPort):
         return await self._generate_scene(prompt=prompt, genre=state.genre)
 
     async def generate_opening_scene_from_answers(
-        self, theme: str, character_name: str, answers: list[tuple[str, str]]
+        self, theme: ThemeDetail, character_name: str, answers: list[tuple[str, str]]
     ) -> OpeningScene:
         if self._client is None:
             raise StoryGenerationError("GEMINI_API_KEY is not configured.")

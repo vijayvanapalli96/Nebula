@@ -99,7 +99,7 @@ const StoryGeneratingPage: React.FC = () => {
   const [subtitleIndex, setSubtitleIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const { questions, answers, customInput, selectedGenre } = useStoryCreationStore();
+  const { questions, answers, customInput, selectedGenre, storyId } = useStoryCreationStore();
   const { setScene } = useStorySessionStore();
 
   // Rotate subtitles every 2.2 s
@@ -113,15 +113,27 @@ const StoryGeneratingPage: React.FC = () => {
 
   // Fire the API call once on mount
   useEffect(() => {
-    const theme = selectedGenre?.title ?? 'Adventure';
+    const themeId = selectedGenre?.id ?? '';
     const character_name = customInput.trim() || 'The Protagonist';
 
-    const answersPayload = questions.map((q) => ({
-      question: q.question,
-      answer: answers[q.id] ?? '',
-    }));
+    const answersPayload = questions.map((q) => {
+      const selectedLabel = answers[q.id] ?? '';
+      const matchedOption = q.options.find((o) => o.label === selectedLabel);
+      return {
+        question_id: q.id,
+        question: q.question,
+        selected_option: selectedLabel,
+        image_url: matchedOption?.image ?? '',
+      };
+    });
 
-    fetchStoryOpening({ theme, character_name, answers: answersPayload })
+    fetchStoryOpening({
+      story_id: storyId ?? '',
+      theme_id: themeId,
+      character_name,
+      answers: answersPayload,
+      custom_input: customInput.trim(),
+    })
       .then((scene) => {
         setScene(scene);
         navigate('/story/scene', { replace: true });

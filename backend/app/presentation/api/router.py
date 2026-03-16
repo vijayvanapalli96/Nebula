@@ -83,14 +83,17 @@ async def generate_questions(
     "/story/opening",
     response_model=OpeningSceneResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_auth)],
 )
 async def generate_opening_scene(
     request: OpeningSceneRequest,
+    user_id: str = Depends(require_auth),
     use_case: StoryEngineUseCase = Depends(get_use_case),
 ) -> OpeningSceneResponse:
     try:
-        result = await use_case.generate_opening_scene(to_opening_scene_command(request))
+        result = await use_case.generate_opening_scene(
+            command=to_opening_scene_command(request),
+            user_id=user_id,
+        )
         media_request_id = use_case.fire_opening_scene_media(result.scene)
         return to_opening_scene_response(result, media_request_id=media_request_id)
     except StoryGenerationError as exc:

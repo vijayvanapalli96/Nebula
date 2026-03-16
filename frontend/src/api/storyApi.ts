@@ -86,11 +86,12 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 /** POST /story/questions — fetches AI-generated questions for the given theme/genre. */
-export async function fetchStoryQuestions(themeId: string): Promise<StoryQuestionsResponse> {
+export async function fetchStoryQuestions(themeId: string, signal?: AbortSignal): Promise<StoryQuestionsResponse> {
   const res = await fetch(`${BASE_URL}/story/questions`, {
     method: 'POST',
     headers: await getAuthHeaders(),
     body: JSON.stringify({ theme_id: themeId }),
+    signal,
   });
 
   if (!res.ok) {
@@ -122,9 +123,16 @@ export async function fetchStoryQuestions(themeId: string): Promise<StoryQuestio
 }
 
 export interface StoryOpeningRequest {
-  theme: string;
+  story_id: string;
+  theme_id: string;
   character_name: string;
-  answers: Array<{ question: string; answer: string }>;
+  answers: Array<{
+    question_id: string;
+    question: string;
+    selected_option: string;
+    image_url: string;
+  }>;
+  custom_input: string;
 }
 
 /** POST /story/opening — generates the opening scene from the user's answers. */

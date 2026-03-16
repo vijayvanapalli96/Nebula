@@ -10,6 +10,7 @@ export interface Choice {
 }
 
 export interface Scene {
+  story_id: string;
   theme: string;
   character_name: string;
   scene_title: string;

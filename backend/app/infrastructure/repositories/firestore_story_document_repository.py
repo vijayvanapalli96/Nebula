@@ -93,3 +93,49 @@ class FirestoreStoryDocumentRepository:
                 "createdAt": question.created_at,
             }
         )
+
+    def save_answers(
+        self,
+        user_id: str,
+        story_id: str,
+        answers: list[dict],
+        custom_input: str,
+    ) -> None:
+        """Persist each answer as its own document; store customInput on the story doc."""
+        story_ref = (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+        )
+        answers_col = story_ref.collection("answers")
+        for ans in answers:
+            answers_col.document(ans["questionId"]).set({
+                **ans,
+                "savedAt": datetime.now(UTC),
+            })
+        story_ref.update({
+            "customInput": custom_input,
+            "updatedAt": datetime.now(UTC),
+        })
+
+    def store_scene(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+        scene_data: dict,
+    ) -> None:
+        """Write scene_data to users/{user_id}/stories/{story_id}/scenes/{scene_id}."""
+        (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+            .collection("scenes")
+            .document(scene_id)
+            .set({
+                **scene_data,
+                "createdAt": datetime.now(UTC),
+            })
+        )
