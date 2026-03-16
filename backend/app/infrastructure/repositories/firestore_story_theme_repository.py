@@ -25,6 +25,10 @@ class FirestoreStoryThemeRepository(StoryThemeRepository):
                 themes.append(theme)
         return sorted(themes, key=lambda item: item.sort_order)
 
+    def update_image(self, theme_id: str, image_url: str) -> None:
+        """Update the thumbnailUrl field for a theme document in Firestore."""
+        self._collection.document(theme_id).update({"thumbnailUrl": image_url})
+
     @staticmethod
     def _to_theme(document_id: str, payload: dict[str, Any]) -> StoryTheme | None:
         title = _first_non_empty(payload, "title")
