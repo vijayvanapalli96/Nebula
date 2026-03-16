@@ -77,6 +77,7 @@ class OpeningScene:
     choices: list[OpeningChoice]
     video_prompt: str = ""
     video_uri: str | None = None
+    summary: str = ""
 
 
 @dataclass

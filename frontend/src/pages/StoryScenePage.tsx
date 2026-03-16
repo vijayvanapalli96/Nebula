@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { useStorySessionStore } from '../store/storySessionStore';
 import SceneDisplay from '../features/story/SceneDisplay';
@@ -9,7 +9,7 @@ import { gcsPathToUrl } from '../utils/gcs';
 
 const StoryScenePage: React.FC = () => {
   const navigate = useNavigate();
-  const { currentScene, updateChoiceMedia } = useStorySessionStore();
+  const { currentScene, updateChoiceMedia, isGenerating, error, continueStory } = useStorySessionStore();
 
   // Guard: if no scene loaded, go back to dashboard
   useEffect(() => {
@@ -41,6 +41,11 @@ const StoryScenePage: React.FC = () => {
   };
 
   if (!currentScene) return null;
+
+  const handleChoiceSelect = (choiceId: string) => {
+    if (isGenerating) return;
+    continueStory(choiceId);
+  };
 
   return (
     <div
@@ -91,6 +96,22 @@ const StoryScenePage: React.FC = () => {
           Dashboard
         </button>
 
+        {/* Scene depth indicator */}
+        <div className="flex items-center gap-2">
+          {currentScene.depth !== undefined && currentScene.depth > 0 && (
+            <span
+              className="text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full"
+              style={{
+                backgroundColor: 'rgba(52,211,153,0.12)',
+                border: '1px solid rgba(52,211,153,0.3)',
+                color: '#6ee7b7',
+              }}
+            >
+              Scene {(currentScene.depth ?? 0) + 1}
+            </span>
+          )}
+        </div>
+
         {/* Floating "View Story Path" button */}
         <motion.button
           onClick={() => navigate('/story/graph')}
@@ -117,9 +138,58 @@ const StoryScenePage: React.FC = () => {
       {/* ── Main content ── */}
       <div className="flex-1 overflow-y-auto">
         <div className="min-h-full flex flex-col items-center justify-center py-16 px-4">
+          {/* ── Generating overlay ── */}
+          <AnimatePresence>
+            {isGenerating && (
+              <motion.div
+                className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+                style={{ backgroundColor: 'rgba(10, 10, 15, 0.85)', backdropFilter: 'blur(8px)' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.div
+                  className="w-16 h-16 rounded-full"
+                  style={{
+                    border: '3px solid transparent',
+                    borderTopColor: '#8b5cf6',
+                    borderRightColor: 'rgba(139,92,246,0.3)',
+                  }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                />
+                <motion.p
+                  className="mt-6 text-sm font-medium"
+                  style={{ color: '#a78bfa' }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  Generating next scene...
+                </motion.p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Error message ── */}
+          {error && (
+            <motion.div
+              className="w-full max-w-3xl mb-6 px-4 py-3 rounded-xl text-sm"
+              style={{
+                backgroundColor: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                color: '#fca5a5',
+              }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              {error}
+            </motion.div>
+          )}
+
           <SceneDisplay scene={currentScene} />
 
-          {/* ── Choices preview strip ── */}
+          {/* ── Choices ── */}
           {currentScene.choices.length > 0 && (
             <motion.div
               className="w-full max-w-3xl mt-12 px-4"
@@ -159,16 +229,26 @@ const StoryScenePage: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {currentScene.choices.map((choice, i) => (
-                  <motion.div
+                  <motion.button
                     key={choice.choice_id}
-                    className="rounded-xl overflow-hidden text-sm"
+                    onClick={() => handleChoiceSelect(choice.choice_id)}
+                    disabled={isGenerating}
+                    className="rounded-xl overflow-hidden text-sm text-left transition-all"
                     style={{
                       backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-color)',
+                      cursor: isGenerating ? 'not-allowed' : 'pointer',
+                      opacity: isGenerating ? 0.5 : 1,
                     }}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 1.3 + i * 0.07 }}
+                    whileHover={!isGenerating ? {
+                      scale: 1.02,
+                      borderColor: 'rgba(139,92,246,0.5)',
+                      boxShadow: '0 0 20px rgba(139,92,246,0.15)',
+                    } : {}}
+                    whileTap={!isGenerating ? { scale: 0.98 } : {}}
                   >
                     {/* Choice image thumbnail — shown once GCS path arrives via polling */}
                     {gcsPathToUrl(choice.image_url) && (
@@ -195,7 +275,7 @@ const StoryScenePage: React.FC = () => {
                         </p>
                       )}
                     </div>
-                  </motion.div>
+                  </motion.button>
                 ))}
               </div>
             </motion.div>

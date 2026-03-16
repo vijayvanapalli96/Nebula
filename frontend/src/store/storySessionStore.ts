@@ -19,7 +19,13 @@ export interface Scene {
   character_name: string;
   scene_title: string;
   scene_description: string;
+  summary?: string;
   choices: Choice[];
+  // Fields populated by continuation responses
+  scene_id?: string;
+  parent_scene_id?: string;
+  depth?: number;
+  media_request_id?: string | null;
 }
 
 // ── Graph node/edge data types ───────────────────────────────────────────────
@@ -44,7 +50,10 @@ export type GraphNodeData = SceneNodeData | ChoiceNodeData;
 
 interface StorySessionState {
   currentScene: Scene | null;
+  sceneHistory: Scene[];
   selectedChoice: string | null;
+  isGenerating: boolean;
+  error: string | null;
   graphNodes: Node<GraphNodeData>[];
   graphEdges: Edge[];
 
@@ -55,6 +64,9 @@ interface StorySessionState {
    * @param assets Record<asset_key, gcs_path | null> e.g. { choice_A_image: "uid/story/.../A/image.png" }
    */
   updateChoiceMedia: (assets: Record<string, string | null>) => void;
+  continueStory: (choiceId: string) => Promise<void>;
+  setGenerating: (value: boolean) => void;
+  setError: (error: string | null) => void;
   reset: () => void;
 }
 
@@ -109,13 +121,23 @@ function buildGraph(scene: Scene): {
 
 export const useStorySessionStore = create<StorySessionState>((set, get) => ({
   currentScene: null,
+  sceneHistory: [],
   selectedChoice: null,
+  isGenerating: false,
+  error: null,
   graphNodes: [],
   graphEdges: [],
 
   setScene: (scene) => {
     const { nodes, edges } = buildGraph(scene);
-    set({ currentScene: scene, selectedChoice: null, graphNodes: nodes, graphEdges: edges });
+    set((state) => ({
+      currentScene: scene,
+      selectedChoice: null,
+      graphNodes: nodes,
+      graphEdges: edges,
+      sceneHistory: [...state.sceneHistory, scene],
+      error: null,
+    }));
   },
 
   selectChoice: (choiceId) => {
@@ -146,5 +168,64 @@ export const useStorySessionStore = create<StorySessionState>((set, get) => ({
       return { currentScene: { ...state.currentScene, choices } };
     }),
 
-  reset: () => set({ currentScene: null, selectedChoice: null, graphNodes: [], graphEdges: [] }),
+  continueStory: async (choiceId: string) => {
+    const { currentScene } = get();
+    if (!currentScene) return;
+
+    set({ isGenerating: true, error: null, selectedChoice: choiceId });
+
+    try {
+      const { fetchContinuationScene } = await import('../api/storyApi');
+
+      // Determine current scene id — opening scene is always "scene_001"
+      const currentSceneId = currentScene.scene_id ?? 'scene_001';
+      // For parent scene, use the parent if this is a continuation, otherwise empty
+      const previousSceneId = currentScene.parent_scene_id ?? '';
+
+      const response = await fetchContinuationScene({
+        story_id: currentScene.story_id,
+        previous_scene_id: previousSceneId,
+        current_scene_id: currentSceneId,
+        choice_id: choiceId,
+      });
+
+      // Map the continuation response to our Scene type
+      const nextScene: Scene = {
+        story_id: response.story_id,
+        theme: currentScene.theme,
+        character_name: currentScene.character_name,
+        scene_title: response.scene_title,
+        scene_description: response.scene_description,
+        summary: response.summary,
+        choices: response.choices.map((c) => ({
+          choice_id: c.choice_id,
+          choice_text: c.choice_text,
+          direction_hint: c.direction_hint,
+        })),
+        scene_id: response.scene_id,
+        parent_scene_id: response.parent_scene_id,
+        depth: response.depth,
+        media_request_id: response.media_request_id,
+      };
+
+      get().setScene(nextScene);
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to continue story.' });
+    } finally {
+      set({ isGenerating: false });
+    }
+  },
+
+  setGenerating: (value) => set({ isGenerating: value }),
+  setError: (error) => set({ error }),
+
+  reset: () => set({
+    currentScene: null,
+    sceneHistory: [],
+    selectedChoice: null,
+    isGenerating: false,
+    error: null,
+    graphNodes: [],
+    graphEdges: [],
+  }),
 }));

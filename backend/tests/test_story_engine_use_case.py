@@ -370,17 +370,18 @@ def test_generate_opening_scene_returns_scene_with_choices() -> None:
     result = asyncio.run(
         use_case.generate_opening_scene(
             GenerateOpeningSceneCommand(
-                theme="Cyberpunk Noir",
+                story_id="story_test_1",
+                theme_id="cyberpunk-noir",
                 character_name="Kira Voss",
                 answers=[
-                    QuestionAnswer(question="What color is the sky?", answer="Crimson"),
-                    QuestionAnswer(question="What drives the hero?", answer="Revenge"),
+                    QuestionAnswer(question_id="q1", question="What color is the sky?", selected_option="Crimson", image_url=""),
+                    QuestionAnswer(question_id="q2", question="What drives the hero?", selected_option="Revenge", image_url=""),
                 ],
             )
         )
     )
 
-    assert result.theme == "Cyberpunk Noir"
+    assert result.theme == "cyberpunk-noir"
     assert result.character_name == "Kira Voss"
     assert result.scene.scene_title == "Crimson Echoes"
     assert len(result.scene.choices) == 3

@@ -7,6 +7,17 @@ from app.domain.models.story import InitialQuestion, OpeningScene, Scene
 
 
 @dataclass(frozen=True)
+class ContinuationSceneResult:
+    """Returned after a continuation scene is generated and persisted."""
+    story_id: str
+    scene_id: str
+    parent_scene_id: str
+    depth: int
+    scene: OpeningScene
+    media_request_id: str | None = None
+
+
+@dataclass(frozen=True)
 class QuestionsResult:
     theme: str
     questions: list[InitialQuestion]

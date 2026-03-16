@@ -29,3 +29,18 @@ class StoryGeneratorPort(Protocol):
     async def generate_next_scene(self, state: StoryState, chosen: SceneChoice) -> Scene:
         ...
 
+    async def generate_continuation_scene(
+        self,
+        theme: "ThemeDetail",
+        character_name: str,
+        scene_summaries: list[str],
+        current_scene_description: str,
+        selected_choice_text: str,
+        selected_direction_hint: str,
+    ) -> OpeningScene:
+        """Generate the next scene given chain-of-summaries context.
+
+        Returns an ``OpeningScene`` with ``summary`` populated for future
+        context chaining."""
+        ...
+

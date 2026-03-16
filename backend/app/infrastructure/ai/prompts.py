@@ -157,6 +157,8 @@ Rules:
 - Use the character name and their answers to shape the world.
 - Provide 3-4 branching choices, each leading in a meaningfully different direction.
 - Each choice must have a short direction_hint describing the narrative consequence.
+- summary: a concise 1-2 sentence recap of THIS scene only.  This is used as
+  rolling context for future continuation scenes, so capture the key plot beat and setting.
 - video_prompt (scene level): a vivid 1-2 sentence cinematic motion description of the
   opening scene, suitable for a video generation model. Describe camera movement, action,
   atmosphere. No UI text, no titles.
@@ -169,6 +171,7 @@ Required JSON shape:
 {
   "scene_title": "string",
   "scene_description": "string",
+  "summary": "string",
   "video_prompt": "string",
   "choices": [
     {
@@ -260,4 +263,82 @@ def build_themed_questions_prompt(theme: ThemeDetail) -> str:
         "Generate exactly 4 story-setup questions deeply rooted in this theme.\n"
         "Each question must have exactly 4 options with matching image_prompts.\n"
         "Return strictly valid JSON as specified."
+    )
+
+
+# ── Continuation scene (scene → choice → next scene loop) ────────────────────
+
+CONTINUATION_SCENE_SYSTEM_PROMPT = """
+You are a master storyteller continuing an interactive cinematic story.
+Output must be valid JSON only, with no markdown fences and no extra text.
+Rules:
+- scene_description must be immersive, vivid, and cinematic (120-150 words).
+- Continue naturally from the player's choice — honour the direction_hint.
+- Escalate tension or shift the emotional register; never repeat the same beat.
+- Provide 3-4 branching choices, each leading in a meaningfully different direction.
+- Each choice must have a short direction_hint describing the narrative consequence.
+- summary: a concise 1-2 sentence recap of THIS scene only.  This is used as
+  rolling context for future scenes, so capture the key plot beat and setting shift.
+- video_prompt (scene level): a vivid 1-2 sentence cinematic motion description of the
+  scene, suitable for a video generation model. Describe camera movement, action,
+  atmosphere. No UI text, no titles.
+- Each choice must include:
+  - image_prompt: a vivid single-sentence visual still-frame description suitable for an
+    image generation model (what the player would see if they pick this path).
+  - video_prompt: a vivid 1-2 sentence cinematic motion description of what unfolds when
+    the player picks this choice. Describe camera angle, action, atmosphere.
+Required JSON shape:
+{
+  "scene_title": "string",
+  "scene_description": "string",
+  "summary": "string",
+  "video_prompt": "string",
+  "choices": [
+    {
+      "choice_id": "A",
+      "choice_text": "string",
+      "direction_hint": "string",
+      "image_prompt": "string",
+      "video_prompt": "string"
+    }
+  ]
+}
+"""
+
+
+def build_continuation_scene_prompt(
+    theme: "ThemeDetail",
+    character_name: str,
+    scene_summaries: list[str],
+    current_scene_description: str,
+    selected_choice_text: str,
+    selected_direction_hint: str,
+) -> str:
+    """Build the user-turn prompt for a continuation scene.
+
+    Uses chain-of-summaries so context stays bounded regardless of tree depth.
+    """
+    tone_tags = ", ".join(theme.default_tone_tags) if theme.default_tone_tags else "none specified"
+
+    summary_block = "\n".join(
+        f"  Scene {i + 1}: {s}" for i, s in enumerate(scene_summaries)
+    ) if scene_summaries else "  (opening scene — no prior summaries)"
+
+    return (
+        f"Theme Title     : {theme.title}\n"
+        f"Category        : {theme.category}\n"
+        f"Description     : {theme.description}\n"
+        f"Tone Tags       : {tone_tags}\n"
+        f"Narrative Style : {theme.prompt_hints.narrative_style}\n"
+        f"Visual Style    : {theme.prompt_hints.visual_style}\n"
+        f"Character Name  : {character_name}\n\n"
+        "Story so far (scene summaries in chronological order):\n"
+        f"{summary_block}\n\n"
+        "Most recent scene description:\n"
+        f"  {current_scene_description}\n\n"
+        f"The player selected: \"{selected_choice_text}\"\n"
+        f"Direction hint: \"{selected_direction_hint}\"\n\n"
+        "Continue the story from this choice. Write the next scene that flows "
+        "naturally from the player's decision. Maintain continuity with the "
+        "summaries above, escalate stakes, and match the theme's tone and style."
     )

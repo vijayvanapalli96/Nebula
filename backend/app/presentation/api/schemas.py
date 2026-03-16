@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.application.dto.story_commands import (
     ApplyActionCommand,
+    GenerateContinuationCommand,
     GenerateOpeningSceneCommand,
     GenerateQuestionsCommand,
     GenerateStoryQuestionsCommand,
@@ -14,6 +15,7 @@ from app.application.dto.story_commands import (
     StartStoryCommand,
 )
 from app.application.dto.story_results import (
+    ContinuationSceneResult,
     GenerateStoryQuestionsResult,
     OpeningSceneResult,
     QuestionsResult,
@@ -243,6 +245,7 @@ class OpeningSceneResponse(BaseModel):
     character_name: str
     scene_title: str
     scene_description: str
+    summary: str = Field(default="", description="Short recap of this scene for context chaining.")
     video_prompt: str = Field(default="", description="Prompt for the opening scene video.")
     choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
 
@@ -502,6 +505,7 @@ def to_opening_scene_response(
         character_name=result.character_name,
         scene_title=result.scene.scene_title,
         scene_description=result.scene.scene_description,
+        summary=result.scene.summary,
         video_prompt=result.scene.video_prompt,
         choices=[
             OpeningChoiceResponse(
@@ -535,4 +539,64 @@ def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
             )
             for q in result.questions
         ],
+    )
+
+
+# ── Continuation scene ────────────────────────────────────────────────────────
+
+
+class ContinuationSceneRequest(BaseModel):
+    story_id: str = Field(..., min_length=1, description="Story document id.")
+    previous_scene_id: str = Field(
+        ..., min_length=1, description="Scene id before the current one (grandparent in tree terms).",
+    )
+    current_scene_id: str = Field(
+        ..., min_length=1, description="Scene id the player is currently viewing.",
+    )
+    choice_id: str = Field(..., min_length=1, description="Selected choice id from the current scene.")
+
+
+class ContinuationSceneResponse(BaseModel):
+    story_id: str
+    scene_id: str
+    parent_scene_id: str
+    depth: int
+    scene_title: str
+    scene_description: str
+    summary: str = ""
+    video_prompt: str = ""
+    choices: list[OpeningChoiceResponse] = Field(..., min_length=2)
+    media_request_id: str | None = None
+
+
+def to_continuation_command(request: ContinuationSceneRequest) -> GenerateContinuationCommand:
+    return GenerateContinuationCommand(
+        story_id=request.story_id,
+        previous_scene_id=request.previous_scene_id,
+        current_scene_id=request.current_scene_id,
+        choice_id=request.choice_id,
+    )
+
+
+def to_continuation_scene_response(result: ContinuationSceneResult) -> ContinuationSceneResponse:
+    return ContinuationSceneResponse(
+        story_id=result.story_id,
+        scene_id=result.scene_id,
+        parent_scene_id=result.parent_scene_id,
+        depth=result.depth,
+        scene_title=result.scene.scene_title,
+        scene_description=result.scene.scene_description,
+        summary=result.scene.summary,
+        video_prompt=result.scene.video_prompt,
+        choices=[
+            OpeningChoiceResponse(
+                choice_id=c.choice_id,
+                choice_text=c.choice_text,
+                direction_hint=c.direction_hint,
+                image_prompt=c.image_prompt,
+                video_prompt=c.video_prompt,
+            )
+            for c in result.scene.choices
+        ],
+        media_request_id=result.media_request_id,
     )

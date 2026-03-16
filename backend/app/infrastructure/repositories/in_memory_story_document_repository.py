@@ -136,6 +136,21 @@ class InMemoryStoryDocumentRepository:
 
         scene["updatedAt"] = datetime.now(UTC)
 
+    def update_scene_forward_link(
+        self, user_id: str, story_id: str, parent_scene_id: str,
+        choice_id: str, next_scene_id: str,
+    ) -> None:
+        scene = self._scenes.get(user_id, {}).get(story_id, {}).get(parent_scene_id)
+        if scene is None:
+            return
+        next_ids = scene.setdefault("nextSceneIds", [])
+        if next_scene_id not in next_ids:
+            next_ids.append(next_scene_id)
+        for choice in scene.get("choices", []):
+            if choice.get("choiceId") == choice_id:
+                choice["nextSceneId"] = next_scene_id
+                break
+
     def get_story_payload(
         self,
         user_id: str,
