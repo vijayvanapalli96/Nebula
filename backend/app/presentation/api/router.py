@@ -104,7 +104,11 @@ async def generate_opening_scene(
             command=to_opening_scene_command(request),
             user_id=user_id,
         )
-        media_request_id = use_case.fire_opening_scene_media(result.scene)
+        media_request_id = use_case.fire_opening_scene_media(
+            result.scene,
+            story_id=result.story_id,
+            user_id=user_id,
+        )
         return to_opening_scene_response(result, media_request_id=media_request_id)
     except StoryGenerationError as exc:
         raise HTTPException(

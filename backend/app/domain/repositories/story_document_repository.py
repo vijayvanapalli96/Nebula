@@ -49,3 +49,15 @@ class StoryDocumentRepository(Protocol):
     ) -> None:
         """Write a scene document to users/{user_id}/stories/{story_id}/scenes/{scene_id}."""
         ...
+
+    def update_scene_choice_media(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+        choice_id: str,
+        image_url: str | None = None,
+        video_url: str | None = None,
+    ) -> None:
+        """Update a single choice's imageUrl/videoUrl inside a scene document."""
+        ...

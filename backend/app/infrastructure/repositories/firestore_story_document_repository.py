@@ -139,3 +139,39 @@ class FirestoreStoryDocumentRepository:
                 "createdAt": datetime.now(UTC),
             })
         )
+
+    def update_scene_choice_media(
+        self,
+        user_id: str,
+        story_id: str,
+        scene_id: str,
+        choice_id: str,
+        image_url: str | None = None,
+        video_url: str | None = None,
+    ) -> None:
+        """Read-modify-write the choices array to set imageUrl/videoUrl on one choice.
+
+        Safe within asyncio: sync Firestore calls do not yield to the event loop,
+        so concurrent tasks for different choice_ids cannot interleave here.
+        """
+        ref = (
+            self._db.collection("users")
+            .document(user_id)
+            .collection("stories")
+            .document(story_id)
+            .collection("scenes")
+            .document(scene_id)
+        )
+        snap = ref.get()
+        if not snap.exists:
+            return
+        data = snap.to_dict() or {}
+        choices = list(data.get("choices", []))
+        for choice in choices:
+            if choice.get("choiceId") == choice_id:
+                if image_url is not None:
+                    choice["imageUrl"] = image_url
+                if video_url is not None:
+                    choice["videoUrl"] = video_url
+                break
+        ref.update({"choices": choices, "updatedAt": datetime.now(UTC)})
