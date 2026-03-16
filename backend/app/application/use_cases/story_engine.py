@@ -492,6 +492,9 @@ class StoryEngineUseCase:
                 "video_url": c.get("videoUrl"),
             })
         return result
+
+    def get_story_detail(self, user_id: str, story_id: str) -> StoryDetailView | None:
+        """Return full story detail view for a given user and story."""
         resolved_user_id = user_id.strip()
         resolved_story_id = story_id.strip()
 

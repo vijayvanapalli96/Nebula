@@ -66,6 +66,8 @@ class GeminiVideoGenerator(VideoGeneratorPort):
         video = operation.response.generated_videos[0]
         try:
             video_bytes = self._client.files.download(file=video.video)
+        if not video_bytes:
+            raise VideoGenerationError("Veo download returned empty bytes")
         except Exception as exc:
             raise VideoGenerationError(f"Failed to download video: {exc}") from exc
 

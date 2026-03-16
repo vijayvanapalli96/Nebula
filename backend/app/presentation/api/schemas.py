@@ -258,6 +258,12 @@ class SceneMediaResponse(BaseModel):
     choices: list[ChoiceMediaItem]
 
 
+class MediaResponse(BaseModel):
+    """Generic media task response: maps asset keys to their GCS URIs (null = still generating)."""
+    request_id: str
+    assets: dict[str, str | None]
+
+
 def to_start_command(request: StoryStartRequest) -> StartStoryCommand:
     return StartStoryCommand(
         genre=request.genre,
