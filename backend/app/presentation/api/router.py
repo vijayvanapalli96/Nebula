@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.application.errors import InvalidChoiceError, SessionNotFoundError, StoryGenerationError, ThemeNotFoundError
@@ -48,6 +51,38 @@ from app.presentation.api.schemas import (
     to_story_questions_response,
     to_story_theme_response,
 )
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+async def _normalize_media_urls(view: Any, storage: Any) -> None:
+    """Convert raw GCS object paths to signed URLs in-place on view.scenes/questions.
+
+    Also strips the redundant 'gcsPath' field from question options.
+    Paths that already begin with https:// are left unchanged.
+    """
+    targets: list[tuple[dict, str]] = []
+
+    for scene in view.scenes:
+        for choice in scene.get("choices", []):
+            for key in ("imageUrl", "videoUrl"):
+                val = choice.get(key)
+                if val and not str(val).startswith("http"):
+                    targets.append((choice, key))
+
+    for question in view.questions:
+        for option in question.get("options", []):
+            option.pop("gcsPath", None)  # remove redundant field
+            val = option.get("imageUrl")
+            if val and not str(val).startswith("http"):
+                targets.append((option, "imageUrl"))
+
+    if not targets:
+        return
+
+    signed = await asyncio.gather(*(storage.url_for(t[0][t[1]]) for t in targets))
+    for (container, key), url in zip(targets, signed):
+        container[key] = url
+
 
 router = APIRouter()
 
@@ -255,6 +290,7 @@ async def get_story_detail(
     story_id: str,
     token_uid: str = Depends(require_auth),
     use_case: StoryEngineUseCase = Depends(get_use_case),
+    image_storage: ImageStoragePort | None = Depends(get_image_storage),
 ) -> StoryDetailResponse:
     if token_uid != user_id:
         raise HTTPException(
@@ -268,6 +304,9 @@ async def get_story_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Story '{story_id}' not found for user '{user_id}'.",
         )
+    # Convert any raw GCS paths to signed URLs before serialising the response
+    if image_storage is not None:
+        await _normalize_media_urls(view, image_storage)
     return to_story_detail_response(view)
 
 
