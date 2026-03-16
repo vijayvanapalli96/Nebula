@@ -21,10 +21,12 @@ from app.domain.repositories.project_repository import ProjectRepository
 from app.domain.repositories.story_scene_repository import StorySceneRepository
 from app.domain.repositories.story_state_repository import StoryStateRepository
 from app.domain.repositories.story_theme_repository import StoryThemeRepository
+from app.domain.repositories.user_story_repository import UserStoryRepository
 from app.domain.repositories.usage_repository import UsageRepository
 from app.domain.repositories.video_repository import VideoJobRepository
 from app.infrastructure.repositories.firestore_story_scene_repository import FirestoreStorySceneRepository
 from app.infrastructure.repositories.firestore_story_theme_repository import FirestoreStoryThemeRepository
+from app.infrastructure.repositories.firestore_user_story_repository import FirestoreUserStoryRepository
 from app.infrastructure.repositories.in_memory_creative_repository import (
     InMemoryAssetRepository,
     InMemoryCompositionRepository,
@@ -162,6 +164,26 @@ def get_story_scene_repository() -> StorySceneRepository:
     return _get_story_scene_repository_singleton()
 
 
+@lru_cache
+def _get_user_story_repository_singleton() -> UserStoryRepository | None:
+    settings = get_settings()
+    firestore_client = _get_firestore_client_singleton()
+    users_collection = settings.firebase_users_collection.strip()
+    stories_subcollection = settings.firebase_user_stories_subcollection.strip()
+
+    if firestore_client is not None and users_collection and stories_subcollection:
+        return FirestoreUserStoryRepository(
+            firestore_client=firestore_client,
+            users_collection=users_collection,
+            stories_subcollection=stories_subcollection,
+        )
+    return None
+
+
+def get_user_story_repository() -> UserStoryRepository | None:
+    return _get_user_story_repository_singleton()
+
+
 def get_use_case(
     repository: StoryStateRepository = Depends(get_repository),
     generator: StoryGeneratorPort = Depends(get_ai_generator),
@@ -169,6 +191,7 @@ def get_use_case(
     video_generator: VideoGeneratorPort = Depends(get_video_generator),
     theme_repository: StoryThemeRepository = Depends(get_story_theme_repository),
     scene_repository: StorySceneRepository = Depends(get_story_scene_repository),
+    user_story_repository: UserStoryRepository | None = Depends(get_user_story_repository),
 ) -> StoryEngineUseCase:
     return StoryEngineUseCase(
         repository=repository,
@@ -177,6 +200,7 @@ def get_use_case(
         video_generator=video_generator,
         theme_repository=theme_repository,
         scene_repository=scene_repository,
+        user_story_repository=user_story_repository,
         media_tracker=get_media_tracker(),
     )
 

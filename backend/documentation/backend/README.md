@@ -102,6 +102,8 @@ FIREBASE_CREDENTIALS_PATH=/absolute/path/to/firebase-service-account.json
 FIREBASE_THEMES_COLLECTION=themes
 FIREBASE_STORIES_COLLECTION=stories
 FIREBASE_SCENES_SUBCOLLECTION=scenes
+FIREBASE_USERS_COLLECTION=users
+FIREBASE_USER_STORIES_SUBCOLLECTION=stories
 ```
 
 ## Run The Service
@@ -189,7 +191,9 @@ Request:
 
 ### `GET /stories/me`
 
-Returns active in-memory story cards for the landing page.
+Returns the authenticated user's stories from Firestore path:
+`/{FIREBASE_USERS_COLLECTION}/{uid}/{FIREBASE_USER_STORIES_SUBCOLLECTION}`.
+If Firestore is not configured, falls back to in-memory sessions.
 
 ### `GET /story/themes`
 
@@ -260,6 +264,7 @@ Schema reference:
 
 - `scripts/firebase/STORY_THEMES_SCHEMA.md`
 - `scripts/firebase/STORY_SCENES_SCHEMA.md`
+- `scripts/firebase/USER_STORIES_SCHEMA.md`
 
 ## Implementation Notes
 

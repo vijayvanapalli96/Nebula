@@ -148,3 +148,20 @@ class StoryTheme:
     accent_color: str
     is_active: bool = True
     sort_order: int = 0
+
+
+@dataclass(frozen=True)
+class UserStoryRecord:
+    story_id: str
+    session_id: str | None
+    title: str
+    genre: str
+    character_name: str
+    archetype: str
+    last_scene_id: str | None
+    updated_at: datetime
+    choices_available: int = 0
+    progress: int | None = None
+    cover_image: str | None = None
+    last_played_at: datetime | None = None
+    status: str | None = None
