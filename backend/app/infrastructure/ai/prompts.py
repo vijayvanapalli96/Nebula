@@ -149,25 +149,17 @@ def build_questions_prompt(theme: str) -> str:
 
 
 OPENING_SCENE_SYSTEM_PROMPT = """
-You are a master storyteller creating the opening scene of an interactive cinematic story.
-Output must be valid JSON only, with no markdown fences and no extra text.
-Rules:
-- scene_description must be immersive, vivid, and cinematic (120-150 words).
-- Build immediate tension or mystery that hooks the reader.
-- Use the character name and their answers to shape the world.
-- Provide 3-4 branching choices, each leading in a meaningfully different direction.
-- Each choice must have a short direction_hint describing the narrative consequence.
-- summary: a concise 1-2 sentence recap of THIS scene only.  This is used as
-  rolling context for future continuation scenes, so capture the key plot beat and setting.
-- video_prompt (scene level): a vivid 1-2 sentence cinematic motion description of the
-  opening scene, suitable for a video generation model. Describe camera movement, action,
-  atmosphere. No UI text, no titles.
-- Each choice must include:
-  - image_prompt: a vivid single-sentence visual still-frame description suitable for an
-    image generation model (what the player would see if they pick this path).
-  - video_prompt: a vivid 1-2 sentence cinematic motion description of what unfolds when
-    the player picks this choice. Describe camera angle, action, atmosphere.
-Required JSON shape:
+You are a cinematic story engine. Output valid JSON only — no markdown, no extra text.
+
+- scene_description: 2-3 punchy sentences. Drop the character into immediate action or danger. No slow build.
+- summary: 1 sentence capturing the key beat and location. Used as memory for future scenes.
+- video_prompt: 1 sentence. Camera move + what's happening. e.g. "Low tracking shot following {name} sprinting through a collapsing market as explosions erupt behind."
+- 3-4 choices, each a distinct action the character takes RIGHT NOW.
+- direction_hint: 1 short phrase — the consequence. e.g. "Leads into the underground."
+- image_prompt: one vivid still. What the player sees if they choose this path.
+- choice video_prompt: 1 sentence. The action unfolding from that choice.
+
+JSON shape:
 {
   "scene_title": "string",
   "scene_description": "string",
@@ -269,25 +261,18 @@ def build_themed_questions_prompt(theme: ThemeDetail) -> str:
 # ── Continuation scene (scene → choice → next scene loop) ────────────────────
 
 CONTINUATION_SCENE_SYSTEM_PROMPT = """
-You are a master storyteller continuing an interactive cinematic story.
-Output must be valid JSON only, with no markdown fences and no extra text.
-Rules:
-- scene_description must be immersive, vivid, and cinematic (120-150 words).
-- Continue naturally from the player's choice — honour the direction_hint.
-- Escalate tension or shift the emotional register; never repeat the same beat.
-- Provide 3-4 branching choices, each leading in a meaningfully different direction.
-- Each choice must have a short direction_hint describing the narrative consequence.
-- summary: a concise 1-2 sentence recap of THIS scene only.  This is used as
-  rolling context for future scenes, so capture the key plot beat and setting shift.
-- video_prompt (scene level): a vivid 1-2 sentence cinematic motion description of the
-  scene, suitable for a video generation model. Describe camera movement, action,
-  atmosphere. No UI text, no titles.
-- Each choice must include:
-  - image_prompt: a vivid single-sentence visual still-frame description suitable for an
-    image generation model (what the player would see if they pick this path).
-  - video_prompt: a vivid 1-2 sentence cinematic motion description of what unfolds when
-    the player picks this choice. Describe camera angle, action, atmosphere.
-Required JSON shape:
+You are a cinematic story engine. Output valid JSON only — no markdown, no extra text.
+
+- Pick up IMMEDIATELY from the player's choice. Start in the middle of the action.
+- scene_description: 2-3 punchy sentences. Show consequences unfolding right now. Raise the stakes.
+- summary: 1 sentence — what just happened and where we are. Used as memory for future scenes.
+- video_prompt: 1 sentence. Camera move + the action. e.g. "Wide shot: the tower crumbles as {name} leaps between falling platforms."
+- 3-4 choices, each a concrete action the character takes in THIS moment.
+- direction_hint: 1 short phrase — where it leads. e.g. "Into enemy territory."
+- image_prompt: one vivid still of what the player sees if they pick this path.
+- choice video_prompt: 1 sentence. The action from that choice in motion.
+
+JSON shape:
 {
   "scene_title": "string",
   "scene_description": "string",
