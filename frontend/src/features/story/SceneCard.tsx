@@ -1,8 +1,9 @@
-import React, { memo, useRef } from 'react';
+import React, { memo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SceneDoc } from '../../types/story';
 import ChoiceCard from './ChoiceCard';
 import ChoiceUnlockButton from './ChoiceUnlockButton';
+import MediaLoadingBanner from './MediaLoadingBanner';
 
 interface SceneCardProps {
   scene: SceneDoc;
@@ -18,6 +19,8 @@ interface SceneCardProps {
   isLast: boolean;
   /** True while waiting for next-scene API response after a local choice. */
   generatingNextScene: boolean;
+  /** True while polling GET /story/media for choice images after unlock was clicked. */
+  mediaLoading: boolean;
   onRevealChoices: () => void;
   onChoiceSelect?: (choiceId: string) => void;
 }
@@ -31,10 +34,23 @@ const SceneCard: React.FC<SceneCardProps> = memo(
     choicesRevealed,
     isLast,
     generatingNextScene,
+    mediaLoading,
     onRevealChoices,
     onChoiceSelect,
   }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    // Scroll new scenes into view when they are appended (skip the root/first scene)
+    useEffect(() => {
+      if (isLast && sceneIndex > 0 && cardRef.current) {
+        const timer = setTimeout(() => {
+          cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // API data takes priority; fall back to locally chosen option this session
     const effectiveSelectedChoiceId = selectedChoiceId ?? localSelectedChoiceId;
@@ -54,6 +70,7 @@ const SceneCard: React.FC<SceneCardProps> = memo(
 
     return (
       <motion.div
+        ref={cardRef}
         className="w-full"
         initial={{ opacity: 0, y: 36 }}
         animate={{ opacity: 1, y: 0 }}
@@ -132,8 +149,8 @@ const SceneCard: React.FC<SceneCardProps> = memo(
             </p>
           </div>
 
-          {/* ── Case B1: leaf, choices not yet revealed — show unlock button only ── */}
-          {isInteractiveLeaf && !choicesRevealed && (
+          {/* ── Case B1: leaf, timer running — show unlock button ── */}
+          {isInteractiveLeaf && !choicesRevealed && !mediaLoading && (
             <motion.div
               className="px-6 sm:px-10 lg:px-16 pb-14"
               initial={{ opacity: 0, y: 10 }}
@@ -143,6 +160,13 @@ const SceneCard: React.FC<SceneCardProps> = memo(
               <ChoiceUnlockButton onUnlock={onRevealChoices} />
             </motion.div>
           )}
+
+          {/* ── Case B1.5: leaf, polling for images — show loading banner ── */}
+          <AnimatePresence>
+            {isInteractiveLeaf && mediaLoading && (
+              <MediaLoadingBanner choiceCount={scene.choices.length} />
+            )}
+          </AnimatePresence>
 
           {/* ── Cases A / B2 / B3: show choice grid ── */}
           {(hasSelection || choicesRevealed) && (
