@@ -14,7 +14,6 @@ class StoredQuestionOption:
     text: str
     image_prompt: str
     image_url: str = ""
-    gcs_path: str = ""
 
 
 @dataclass

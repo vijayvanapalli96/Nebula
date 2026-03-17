@@ -93,6 +93,11 @@ class StoryDetailView:
     question_count: int | None = None
     questions_generated: list[str] | None = None
     created_at: datetime | None = None
+    root_scene_id: str | None = None
+    branch_depth: int | None = None
+    questionnaire_completed: bool | None = None
+    custom_input: str | None = None
+    theme_image_url: str | None = None
     questions: list[dict] = field(default_factory=list)
     answers: list[dict] = field(default_factory=list)
     scenes: list[dict] = field(default_factory=list)

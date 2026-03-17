@@ -340,10 +340,10 @@ class StoryEngineUseCase:
         async def _gen_image(asset_key: str, prompt: str, path: str, choice_id: str = "") -> None:
             try:
                 image_bytes = await self._generator.generate_option_image(prompt)
-                await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
-                self._media_tracker.mark_completed(request_id, asset_key, path)  # store GCS path
+                url = await self._image_storage.upload_image(image_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, url)
                 if choice_id:
-                    _write_choice_media(choice_id, image_url=path)  # persist GCS path to Firestore
+                    _write_choice_media(choice_id, image_url=url)  # persist served URL to Firestore
             except Exception as exc:
                 self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
@@ -356,10 +356,10 @@ class StoryEngineUseCase:
                     aspect_ratio="16:9",
                 )
                 result = await self._video_generator.generate(req)  # type: ignore[union-attr]
-                await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
-                self._media_tracker.mark_completed(request_id, asset_key, path)  # store GCS path
+                url = await self._image_storage.upload_video(result.video_bytes, path)  # type: ignore[union-attr]
+                self._media_tracker.mark_completed(request_id, asset_key, url)
                 if choice_id:
-                    _write_choice_media(choice_id, video_url=path)  # persist GCS path to Firestore
+                    _write_choice_media(choice_id, video_url=url)  # persist served URL to Firestore
             except Exception as exc:
                 self._media_tracker.mark_failed(request_id, asset_key, str(exc))  # type: ignore[union-attr]
 
@@ -863,6 +863,11 @@ class StoryEngineUseCase:
             question_count=record.question_count,
             questions_generated=record.questions_generated,
             created_at=record.created_at,
+            root_scene_id=record.root_scene_id,
+            branch_depth=record.branch_depth,
+            questionnaire_completed=record.questionnaire_completed,
+            custom_input=record.custom_input,
+            theme_image_url=record.theme_image_url,
             questions=payload.get("questions", []),
             answers=payload.get("answers", []),
             scenes=payload.get("scenes", []),

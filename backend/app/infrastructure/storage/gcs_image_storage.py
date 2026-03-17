@@ -6,6 +6,7 @@ import logging
 import os
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from google.cloud import storage
 from google.oauth2 import service_account
@@ -58,11 +59,8 @@ class GcsImageStorage(ImageStoragePort):
         )
         return url
 
-    def _upload_sync(self, data: bytes, destination_path: str, content_type: str) -> str:
-        bucket = self._client.bucket(self._bucket_name)  # type: ignore[union-attr]
-        blob = bucket.blob(destination_path)
-        blob.upload_from_string(data, content_type=content_type)
-
+    def _make_url(self, blob: Any) -> str:
+        """Generate a signed or public URL for a GCS blob (shared by upload & sign paths)."""
         # 1️⃣ Explicit SA key — best option, always works
         if self._signing_credentials:
             return blob.generate_signed_url(
@@ -95,7 +93,7 @@ class GcsImageStorage(ImageStoragePort):
         except Exception:
             logger.warning(
                 "ADC-based signed URL generation failed for '%s', falling back to public URL.",
-                destination_path,
+                blob.name,
                 exc_info=True,
             )
 
@@ -103,7 +101,34 @@ class GcsImageStorage(ImageStoragePort):
         logger.warning(
             "Returning public_url for '%s'. Ensure bucket '%s' has allUsers Storage Object Viewer "
             "or set GCS_SA_KEY_PATH / grant roles/iam.serviceAccountTokenCreator.",
-            destination_path,
+            blob.name,
             self._bucket_name,
         )
         return blob.public_url
+
+    def _upload_sync(self, data: bytes, destination_path: str, content_type: str) -> str:
+        bucket = self._client.bucket(self._bucket_name)  # type: ignore[union-attr]
+        blob = bucket.blob(destination_path)
+        blob.upload_from_string(data, content_type=content_type)
+        return self._make_url(blob)
+
+    def _sign_sync(self, gcs_path: str) -> str:
+        """Return a signed URL for an existing GCS object path (no upload)."""
+        bucket = self._client.bucket(self._bucket_name)  # type: ignore[union-attr]
+        blob = bucket.blob(gcs_path)
+        return self._make_url(blob)
+
+    async def url_for(self, gcs_path: str) -> str:
+        """Return an accessible URL for a GCS object path.
+
+        If gcs_path is already an https:// URL, returns it unchanged.
+        Otherwise generates a signed URL using the same strategy as upload_image.
+        """
+        if not gcs_path:
+            return ""
+        if gcs_path.startswith("http://") or gcs_path.startswith("https://"):
+            return gcs_path
+        if self._client is None or not self._bucket_name:
+            return f"https://storage.googleapis.com/{self._bucket_name or 'unknown'}/{gcs_path}"
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._sign_sync, gcs_path)

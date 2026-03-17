@@ -169,7 +169,6 @@ class InMemoryStoryDocumentRepository:
                             "text": option.text,
                             "imagePrompt": option.image_prompt,
                             "imageUrl": option.image_url,
-                            "gcsPath": option.gcs_path,
                         }
                         for option in question.options
                     ],

@@ -88,7 +88,6 @@ class FirestoreStoryDocumentRepository:
                         "text": opt.text,
                         "imagePrompt": opt.image_prompt,
                         "imageUrl": opt.image_url,
-                        "gcsPath": opt.gcs_path,
                     }
                     for opt in question.options
                 ],

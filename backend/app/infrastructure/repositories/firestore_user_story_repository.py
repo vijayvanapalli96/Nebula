@@ -170,6 +170,11 @@ def _to_user_story_record(
         question_count=question_count,
         questions_generated=questions_generated,
         created_at=created_at,
+        root_scene_id=_first_non_empty(payload, "rootSceneId", "root_scene_id") or None,
+        branch_depth=payload.get("branchDepth") if payload.get("branchDepth") is not None else None,
+        questionnaire_completed=payload.get("questionnaireCompleted"),
+        custom_input=payload.get("customInput") or None,
+        theme_image_url=_first_non_empty(payload, "themeImageUrl", "theme_image_url") or None,
     )
 
 

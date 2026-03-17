@@ -136,6 +136,11 @@ class StoryDetailResponse(BaseModel):
     question_count: int | None = None
     questions_generated: list[str] = Field(default_factory=list)
     created_at: datetime | None = None
+    root_scene_id: str | None = None
+    branch_depth: int | None = None
+    questionnaire_completed: bool | None = None
+    custom_input: str | None = None
+    theme_image_url: str | None = None
     questions: list[dict[str, Any]] = Field(default_factory=list)
     answers: list[dict[str, Any]] = Field(default_factory=list)
     scenes: list[dict[str, Any]] = Field(default_factory=list)
@@ -253,8 +258,8 @@ class OpeningSceneResponse(BaseModel):
 class ChoiceMediaItem(BaseModel):
     """Media paths for a single choice, read directly from Firestore."""
     choice_id: str
-    image_url: str | None = None   # GCS object path, convert with gcsPathToUrl() on the frontend
-    video_url: str | None = None   # GCS object path, convert with gcsPathToUrl() on the frontend
+    image_url: str | None = None   # signed URL — renderable directly in <img>/<video>
+    video_url: str | None = None   # signed URL — renderable directly in <img>/<video>
 
 
 class SceneMediaResponse(BaseModel):
@@ -335,6 +340,11 @@ def to_story_detail_response(view: StoryDetailView) -> StoryDetailResponse:
         question_count=view.question_count,
         questions_generated=view.questions_generated or [],
         created_at=view.created_at,
+        root_scene_id=view.root_scene_id,
+        branch_depth=view.branch_depth,
+        questionnaire_completed=view.questionnaire_completed,
+        custom_input=view.custom_input,
+        theme_image_url=view.theme_image_url,
         questions=view.questions,
         answers=view.answers,
         scenes=view.scenes,

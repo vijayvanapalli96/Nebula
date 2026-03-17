@@ -176,3 +176,8 @@ class UserStoryRecord:
     question_count: int | None = None
     questions_generated: list[str] = field(default_factory=list)
     created_at: datetime | None = None
+    root_scene_id: str | None = None
+    branch_depth: int | None = None
+    questionnaire_completed: bool | None = None
+    custom_input: str | None = None
+    theme_image_url: str | None = None
