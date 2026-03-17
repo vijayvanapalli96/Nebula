@@ -13,6 +13,8 @@ interface SceneTimelineProps {
   choicesRevealedForScene: Record<string, boolean>;
   /** True while waiting for next-scene generation */
   generatingNextScene: boolean;
+  /** sceneId → true while polling for choice images */
+  mediaLoadingForScene: Record<string, boolean>;
   onChoiceSelect?: (sceneId: string, choiceId: string) => void;
   onRevealChoices?: (sceneId: string) => void;
 }
@@ -104,6 +106,7 @@ const SceneTimeline: React.FC<SceneTimelineProps> = ({
   localSelectedChoices,
   choicesRevealedForScene,
   generatingNextScene,
+  mediaLoadingForScene,
   onChoiceSelect,
   onRevealChoices,
 }) => {
@@ -126,6 +129,7 @@ const SceneTimeline: React.FC<SceneTimelineProps> = ({
               choicesRevealed={choicesRevealedForScene[scene.sceneId] ?? false}
               isLast={isLast}
               generatingNextScene={isLast ? generatingNextScene : false}
+              mediaLoading={mediaLoadingForScene[scene.sceneId] ?? false}
               onRevealChoices={() => onRevealChoices?.(scene.sceneId)}
               onChoiceSelect={(choiceId) => onChoiceSelect?.(scene.sceneId, choiceId)}
             />

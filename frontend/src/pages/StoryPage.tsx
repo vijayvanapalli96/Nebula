@@ -38,10 +38,11 @@ const StoryPage: React.FC = () => {
     choicesRevealedForScene,
     localSelectedChoice,
     generatingNextScene,
+    mediaLoadingForScene,
     loading,
     error,
     loadStory,
-    revealChoices,
+    startMediaPolling,
     selectLocalChoice,
     reset,
   } = useStoryViewerStore();
@@ -61,8 +62,8 @@ const StoryPage: React.FC = () => {
   );
 
   const handleRevealChoices = useCallback(
-    (sceneId: string) => revealChoices(sceneId),
-    [revealChoices],
+    (sceneId: string) => startMediaPolling(sceneId),
+    [startMediaPolling],
   );
 
   // ── loading state ─────────────────────────────────────────────────────────
@@ -226,6 +227,7 @@ const StoryPage: React.FC = () => {
               localSelectedChoices={localSelectedChoice}
               choicesRevealedForScene={choicesRevealedForScene}
               generatingNextScene={generatingNextScene}
+              mediaLoadingForScene={mediaLoadingForScene}
               onChoiceSelect={handleChoiceSelect}
               onRevealChoices={handleRevealChoices}
             />

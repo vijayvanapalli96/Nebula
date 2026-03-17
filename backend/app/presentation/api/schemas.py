@@ -558,7 +558,7 @@ def to_questions_response(result: QuestionsResult) -> GenerateQuestionsResponse:
 class ContinuationSceneRequest(BaseModel):
     story_id: str = Field(..., min_length=1, description="Story document id.")
     previous_scene_id: str = Field(
-        ..., min_length=1, description="Scene id before the current one (grandparent in tree terms).",
+        default="", description="Scene id before the current one. Informational — not used by the engine.",
     )
     current_scene_id: str = Field(
         ..., min_length=1, description="Scene id the player is currently viewing.",
