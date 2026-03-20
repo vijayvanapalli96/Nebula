@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { fetchStoryDetail, fetchContinuationScene, fetchSceneMedia } from '../api/storyApi';
+import { fetchStoryDetail, fetchContinuationScene, fetchSceneMedia, fetchStoryOpening } from '../api/storyApi';
 import type { ChoiceMediaItem } from '../api/storyApi';
 import type { SceneDoc, StoryDetail } from '../types/story';
 import { gcsPathToUrl } from '../utils/gcs';
+import type { Question } from './storyCreationStore';
 
 // ── Scene timeline builder ────────────────────────────────────────────────────
 
@@ -49,9 +50,19 @@ interface StoryViewerState {
   mediaReadyForScene: Record<string, boolean>;
   loading: boolean;
   error: string | null;
+  /** Current lifecycle phase of the story. */
+  phase: 'loading' | 'questions' | 'generating' | 'playing' | 'error';
+  /** Questions fetched from Firestore for this story. */
+  storyQuestions: Question[];
+  /** User's answers: questionId → selected label. */
+  questionAnswers: Record<string, string>;
+  /** Optional custom input / character name. */
+  questionCustomInput: string;
+  /** True while POST /story/opening is in-flight. */
+  generatingScene: boolean;
 
   /** Load story from API (or use prefetched data from navigation state). */
-  loadStory: (storyId: string, prefetched?: StoryDetail | null) => Promise<void>;
+  loadStory: (storyId: string, prefetched?: StoryDetail | null, silent?: boolean) => Promise<void>;
   /** Mark a choice selection recovered from Firestore data. */
   selectChoice: (sceneId: string, choiceId: string) => void;
   /** Reveal the choice grid for a leaf scene after the unlock button is clicked. */
@@ -64,6 +75,12 @@ interface StoryViewerState {
   startMediaPolling: (sceneId: string) => void;
   /** Merge polled imageUrl/videoUrl into timeline choices and mark scene media ready. */
   mergeChoiceMedia: (sceneId: string, items: ChoiceMediaItem[]) => void;
+  /** Store an answer to a story question. */
+  setQuestionAnswer: (questionId: string, label: string) => void;
+  /** Update the custom story input / character name. */
+  setQuestionCustomInput: (value: string) => void;
+  /** Submit questionnaire answers and trigger opening scene generation. */
+  submitQuestionnaire: () => Promise<void>;
   reset: () => void;
 }
 
@@ -79,9 +96,14 @@ export const useStoryViewerStore = create<StoryViewerState>((set, get) => ({
   mediaReadyForScene: {},
   loading: false,
   error: null,
+  phase: 'loading',
+  storyQuestions: [],
+  questionAnswers: {},
+  questionCustomInput: '',
+  generatingScene: false,
 
-  loadStory: async (storyId, prefetched) => {
-    set({ loading: true, error: null });
+  loadStory: async (storyId, prefetched, silent = false) => {
+    if (!silent) set({ loading: true, error: null, phase: 'loading' });
     try {
       const story = prefetched ?? (await fetchStoryDetail(storyId));
 
@@ -125,10 +147,49 @@ export const useStoryViewerStore = create<StoryViewerState>((set, get) => ({
         if (sel) selectedChoices[scene.sceneId] = sel.choiceId;
       }
 
-      set({ story: normalizedStory, scenes, timeline, selectedChoices, loading: false });
+      // Determine lifecycle phase
+      const hasScenes = scenes.length > 0;
+      const questionnaireCompleted = story.questionnaire_completed ?? false;
+      let storyPhase: 'playing' | 'questions' | 'generating' = 'playing';
+      if (!hasScenes) {
+        storyPhase = questionnaireCompleted ? 'generating' : 'questions';
+      }
+
+      // Map Firestore questions into typed Question[]
+      const storyQuestions: Question[] = (normalizedStory.questions ?? []).map((q, idx) => {
+        const qr = q as Record<string, unknown>;
+        return {
+          id: String(qr.questionId ?? qr.question_id ?? `q_${idx}`),
+          question: String(qr.question ?? ''),
+          options: ((qr.options ?? []) as Record<string, unknown>[]).map((opt, oi) => ({
+            label: String(opt.label ?? opt.text ?? `Option ${oi + 1}`),
+            image: String(opt.imageUrl ?? opt.image ?? ''),
+          })),
+        };
+      });
+
+      // Recover any already-submitted answers
+      const questionAnswers: Record<string, string> = {};
+      for (const ans of (normalizedStory.answers ?? [])) {
+        const a = ans as Record<string, unknown>;
+        const qId = String(a.questionId ?? a.question_id ?? '');
+        const selected = String(a.selectedOption ?? a.selected_option ?? '');
+        if (qId && selected) questionAnswers[qId] = selected;
+      }
+
+      set({
+        story: normalizedStory, scenes, timeline, selectedChoices,
+        loading: false, phase: storyPhase, storyQuestions, questionAnswers,
+      });
+
+      // Auto-retrigger generation if answers were submitted but scene never stored
+      if (storyPhase === 'generating') {
+        void get().submitQuestionnaire();
+      }
     } catch (err) {
       set({
         loading: false,
+        phase: 'error',
         error: err instanceof Error ? err.message : 'Failed to load story.',
       });
     }
@@ -285,6 +346,50 @@ export const useStoryViewerStore = create<StoryViewerState>((set, get) => ({
     }
   },
 
+  setQuestionAnswer: (questionId, label) =>
+    set((state) => ({
+      questionAnswers: { ...state.questionAnswers, [questionId]: label },
+    })),
+
+  setQuestionCustomInput: (value) => set({ questionCustomInput: value }),
+
+  submitQuestionnaire: async () => {
+    const { story, storyQuestions, questionAnswers, questionCustomInput } = get();
+    if (!story) return;
+
+    set({ phase: 'generating', generatingScene: true, error: null });
+
+    const answersPayload = storyQuestions.map((q) => {
+      const selectedLabel = questionAnswers[q.id] ?? '';
+      const matchedOption = q.options.find((o) => o.label === selectedLabel);
+      return {
+        question_id: q.id,
+        question: q.question,
+        selected_option: selectedLabel,
+        image_url: matchedOption?.image ?? '',
+      };
+    });
+
+    try {
+      await fetchStoryOpening({
+        story_id: story.story_id,
+        theme_id: story.theme_id ?? '',
+        character_name: questionCustomInput.trim() || 'The Protagonist',
+        answers: answersPayload,
+        custom_input: questionCustomInput.trim(),
+      });
+      set({ generatingScene: false });
+      // Silently reload from Firestore — loadStory will set phase='playing'
+      await get().loadStory(story.story_id, null, true);
+    } catch (err) {
+      set({
+        generatingScene: false,
+        phase: 'questions',
+        error: err instanceof Error ? err.message : 'Failed to generate story. Please try again.',
+      });
+    }
+  },
+
   reset: () =>
     set({
       story: null,
@@ -298,5 +403,10 @@ export const useStoryViewerStore = create<StoryViewerState>((set, get) => ({
       mediaReadyForScene: {},
       loading: false,
       error: null,
+      phase: 'loading',
+      storyQuestions: [],
+      questionAnswers: {},
+      questionCustomInput: '',
+      generatingScene: false,
     }),
 }));

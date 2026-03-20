@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from app.application.dto.video_commands import GenerateVideoCommand
 from app.application.dto.video_results import VideoJobResult
-from app.application.errors import VideoJobNotFoundError
+from app.application.errors import VideoGenerationError, VideoJobNotFoundError
 from app.application.ports.video_generator import VideoGenerationRequest, VideoGeneratorPort
 from app.domain.models.video import VideoJob
 from app.domain.repositories.video_repository import VideoJobRepository
@@ -24,12 +24,14 @@ class VideoGenerationUseCase:
     def __init__(
         self,
         repository: VideoJobRepository,
-        generator: VideoGeneratorPort,
+        generator: VideoGeneratorPort | None,
     ) -> None:
         self._repository = repository
         self._generator = generator
 
     async def generate_video(self, command: GenerateVideoCommand) -> VideoJobResult:
+        if self._generator is None:
+            raise VideoGenerationError("Video generation is disabled.")
         job = VideoJob(
             job_id=str(uuid4()),
             prompt=command.prompt.strip(),

@@ -2,8 +2,11 @@ import React, { useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useStoryViewerStore } from '../store/storyViewerStore';
+import { useAuthStore } from '../store/authStore';
 import StoryLoadingPage from './StoryLoadingPage';
 import SceneTimeline from '../features/story/SceneTimeline';
+import StoryQuestionsView from '../features/story/StoryQuestionsView';
+import StoryGeneratingView from '../features/story/StoryGeneratingView';
 import type { StoryDetail } from '../types/story';
 
 interface StoryPageLocationState {
@@ -30,6 +33,8 @@ const StoryPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as StoryPageLocationState | null;
+  const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.loading);
 
   const {
     story,
@@ -41,20 +46,23 @@ const StoryPage: React.FC = () => {
     mediaLoadingForScene,
     loading,
     error,
+    phase,
+    generatingScene,
     loadStory,
     startMediaPolling,
     selectLocalChoice,
+    submitQuestionnaire,
     reset,
   } = useStoryViewerStore();
 
   useEffect(() => {
-    if (!storyId) return;
+    if (!storyId || !user || authLoading) return;
     const prefetched =
       locationState?.storyDetail?.story_id === storyId ? locationState.storyDetail : null;
     void loadStory(storyId, prefetched);
     return () => reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storyId]);
+  }, [storyId, user, authLoading]);
 
   const handleChoiceSelect = useCallback(
     (sceneId: string, choiceId: string) => selectLocalChoice(sceneId, choiceId),
@@ -67,7 +75,7 @@ const StoryPage: React.FC = () => {
   );
 
   // ── loading state ─────────────────────────────────────────────────────────
-  if (loading) {
+  if (phase === 'loading') {
     const hint = story ?? locationState?.storyDetail;
     return (
       <StoryLoadingPage
@@ -78,8 +86,8 @@ const StoryPage: React.FC = () => {
     );
   }
 
-  // ── error / not-found state ───────────────────────────────────────────────
-  if (error || !story) {
+  // ── error state ───────────────────────────────────────────────────────────
+  if (phase === 'error') {
     return (
       <main
         className="min-h-screen flex flex-col items-center justify-center gap-5 px-6"
@@ -105,6 +113,24 @@ const StoryPage: React.FC = () => {
       </main>
     );
   }
+
+  // ── questions phase ───────────────────────────────────────────────────────
+  if (phase === 'questions') {
+    return <StoryQuestionsView />;
+  }
+
+  // ── generating phase ──────────────────────────────────────────────────────
+  if (phase === 'generating') {
+    return (
+      <StoryGeneratingView
+        error={generatingScene ? null : error}
+        onRetry={() => { void submitQuestionnaire(); }}
+      />
+    );
+  }
+
+  // ── defensive guard (should not reach here in playing phase) ─────────────
+  if (!story) return null;
 
   // ── derived values ────────────────────────────────────────────────────────
   const progress = story.progress ?? 0;

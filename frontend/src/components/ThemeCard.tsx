@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import type { Genre } from '../types/story';
+import { fetchStoryQuestions } from '../api/storyApi';
 
 interface ThemeCardProps {
   theme: Genre;
@@ -21,12 +22,21 @@ const HEIGHT: Record<NonNullable<ThemeCardProps['size']>, string> = {
 const ThemeCard: React.FC<ThemeCardProps> = React.memo(
   ({ theme, onClick, size = 'md', delay = 0 }) => {
     const navigate = useNavigate();
+    const [isStarting, setIsStarting] = useState(false);
 
-    const handleClick = () => {
-      if (onClick) {
-        onClick();
-      } else {
-        navigate('/story/create', { state: { genre: theme } });
+    const handleClick = async () => {
+      if (onClick) { onClick(); return; }
+      if (isStarting) return;
+      setIsStarting(true);
+      try {
+        const { storyId } = await fetchStoryQuestions(theme.id);
+        if (storyId) {
+          navigate(`/story/${storyId}`);
+        } else {
+          setIsStarting(false);
+        }
+      } catch {
+        setIsStarting(false);
       }
     };
 
@@ -80,6 +90,18 @@ const ThemeCard: React.FC<ThemeCardProps> = React.memo(
           whileHover={{ opacity: 1 }}
           transition={{ duration: 0.25 }}
         />
+
+        {/* Loading overlay while creating story */}
+        {isStarting && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}>
+            <motion.div
+              className="w-8 h-8 rounded-full"
+              style={{ border: '2px solid rgba(167,139,250,0.35)', borderTopColor: '#a78bfa' }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+            />
+          </div>
+        )}
 
         {/* Top accent badge */}
         <div className="absolute top-3 right-3">

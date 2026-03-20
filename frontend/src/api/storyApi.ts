@@ -1,4 +1,5 @@
 import { auth } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import type { Question, QuestionOption } from '../store/storyCreationStore';
 import type { Genre, StoryDetail, UserStory } from '../types/story';
 import type { Scene } from '../store/storySessionStore';
@@ -121,17 +122,29 @@ export async function fetchStoryScenes(storyId: string): Promise<StoryScenePaylo
 }
 
 /**
- * Returns the current user's Firebase ID token, refreshing it if near expiry.
- * Throws if there is no signed-in user (should never happen inside ProtectedRoute).
+ * Returns auth headers with a valid Firebase ID token.
+ * Waits up to 5 s for auth.currentUser to be populated (handles the brief
+ * window after onAuthStateChanged fires but before currentUser is set).
  */
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const user = auth.currentUser;
+  // Fast path: user already resolved
+  if (auth.currentUser) {
+    const token = await auth.currentUser.getIdToken();
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  }
+
+  // Wait for onAuthStateChanged to resolve (max 5 s)
+  const user = await new Promise<import('firebase/auth').User | null>((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      unsub();
+      resolve(u);
+    });
+    setTimeout(() => { unsub(); resolve(null); }, 5000);
+  });
+
   if (!user) throw new Error('No authenticated user.');
   const token = await user.getIdToken();
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
 /** POST /story/questions — fetches AI-generated questions for the given theme/genre. */

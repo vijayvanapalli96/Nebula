@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useStoryCreationStore } from "../../store/storyCreationStore";
+import { fetchStoryQuestions } from "../../api/storyApi";
 import type { Genre } from "../../types/story";
 
 interface Props {
@@ -10,23 +10,34 @@ interface Props {
 
 const GenreCard: React.FC<Props> = ({ genre }) => {
   const navigate = useNavigate();
-  const setSelectedGenre = useStoryCreationStore((s) => s.setSelectedGenre);
   const [hovered, setHovered] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
-  const handleClick = useCallback(() => {
-    setSelectedGenre(genre);
-    navigate('/story/create', { state: { genre } });
-  }, [setSelectedGenre, navigate, genre]);
+  const startStory = useCallback(async () => {
+    if (isStarting) return;
+    setIsStarting(true);
+    try {
+      const { storyId } = await fetchStoryQuestions(genre.id);
+      if (storyId) {
+        navigate(`/story/${storyId}`);
+      } else {
+        setIsStarting(false);
+      }
+    } catch {
+      setIsStarting(false);
+    }
+  }, [isStarting, genre.id, navigate]);
+
+  const handleClick = useCallback(() => { void startStory(); }, [startStory]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        setSelectedGenre(genre);
-        navigate('/story/create', { state: { genre } });
+        void startStory();
       }
     },
-    [setSelectedGenre, navigate, genre],
+    [startStory],
   );
 
   return (
@@ -44,6 +55,18 @@ const GenreCard: React.FC<Props> = ({ genre }) => {
       whileTap={{ scale: 0.97 }}
       transition={{ type: "spring", stiffness: 280, damping: 22 }}
     >
+      {/* Loading overlay while creating story */}
+      {isStarting && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }}>
+          <motion.div
+            className="w-9 h-9 rounded-full"
+            style={{ border: '2px solid rgba(167,139,250,0.3)', borderTopColor: '#a78bfa' }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+          />
+        </div>
+      )}
+
       <div className="absolute inset-0 overflow-hidden">
         <motion.img
           src={genre.image}

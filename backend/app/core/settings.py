@@ -25,6 +25,7 @@ class Settings(BaseSettings):
         alias="FIREBASE_USER_STORIES_SUBCOLLECTION",
     )
     scene_word_limit: int = 120
+    enable_video_generation: bool = Field(default=True, alias="ENABLE_VIDEO_GENERATION")
 
     model_config = SettingsConfigDict(
         env_file=".env",

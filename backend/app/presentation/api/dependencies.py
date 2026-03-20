@@ -98,7 +98,9 @@ def _get_video_generator_singleton() -> VideoGeneratorPort:
     return GeminiVideoGenerator(settings=get_settings())
 
 
-def get_video_generator() -> VideoGeneratorPort:
+def get_video_generator() -> VideoGeneratorPort | None:
+    if not get_settings().enable_video_generation:
+        return None
     return _get_video_generator_singleton()
 
 
@@ -245,7 +247,7 @@ def get_video_repository() -> VideoJobRepository:
 
 def get_video_use_case(
     repository: VideoJobRepository = Depends(get_video_repository),
-    generator: VideoGeneratorPort = Depends(get_video_generator),
+    generator: VideoGeneratorPort | None = Depends(get_video_generator),
 ) -> VideoGenerationUseCase:
     return VideoGenerationUseCase(repository=repository, generator=generator)
 
@@ -313,7 +315,7 @@ def get_use_case(
     repository: StoryStateRepository = Depends(get_repository),
     generator: StoryGeneratorPort = Depends(get_ai_generator),
     image_storage: ImageStoragePort | None = Depends(get_image_storage),
-    video_generator: VideoGeneratorPort = Depends(get_video_generator),
+    video_generator: VideoGeneratorPort | None = Depends(get_video_generator),
     theme_repository: StoryThemeRepository = Depends(get_story_theme_repository),
     scene_repository: StorySceneRepository = Depends(get_story_scene_repository),
     user_story_repository: UserStoryRepository | None = Depends(get_user_story_repository),
